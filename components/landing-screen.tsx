@@ -39,18 +39,18 @@ export function LandingScreen() {
     setTimeout(() => {
       addMessage({
         sender: "bot",
-        text: "Hola, bienvenido a Magia Plateada. Estoy aqui para ayudarte a encontrar al experto ideal para lo que necesitas.",
+        text: "Hola, bienvenido a Magia Plateada. Estoy aquí para ayudarte a encontrar al experto ideal para lo que necesitas.",
       })
 
       // Segundo mensaje con opciones de servicio (aparece tras 1200ms mas)
       setTimeout(() => {
         addMessage({
           sender: "bot",
-          text: "Cuentame, que tipo de servicio estas buscando?",
+          text: "Cuentame, ¿qué tipo de servicio estas buscando?",
           options: [
-            { label: "Clases o ensenanza", value: "clases" },
+            { label: "Clases o enseñanza", value: "clases" },
             { label: "Reparaciones", value: "reparaciones" },
-            { label: "Asesoria profesional", value: "asesoria" },
+            { label: "Asesoría profesional", value: "asesoría" },
             { label: "Otro servicio", value: "otro" },
           ],
         })
@@ -71,14 +71,14 @@ export function LandingScreen() {
     setTimeout(() => {
       addMessage({
         sender: "bot",
-        text: "Bienvenido! Nos da mucho gusto que quieras compartir tu experiencia. Vamos a crear tu perfil paso a paso.",
+        text: "¡Bienvenido! Nos da mucho gusto que quieras compartir tu experiencia. Vamos a crear tu perfil paso a paso.",
       })
 
       // Segundo mensaje pidiendo el nombre (aparece tras 1200ms mas)
       setTimeout(() => {
         addMessage({
           sender: "bot",
-          text: "Para comenzar, cual es tu nombre completo?",
+          text: "Para comenzar, ¿cuál es tu nombre completo?",
         })
       }, 1200)
     }, 500)
@@ -103,7 +103,7 @@ export function LandingScreen() {
             Conecta con la experiencia que necesitas
           </h2>
           <p className="mt-4 text-base leading-relaxed text-muted-foreground">
-            Una plataforma donde adultos mayores comparten su experiencia y sabiduria con quienes la necesitan.
+            Una plataforma donde adultos mayores comparten su experiencia y sabiduría con quienes la necesitan.
           </p>
         </div>
 
@@ -137,12 +137,12 @@ export function LandingScreen() {
             <TarjetaPaso
               icon={<MessageCircle className="h-6 w-6" />}
               title="Conversamos contigo"
-              description="Un chat sencillo te guia para encontrar o publicar el servicio ideal."
+              description="Un chat sencillo te guía para encontrar o publicar el servicio ideal."
             />
             <TarjetaPaso
               icon={<Users className="h-6 w-6" />}
               title="Conectamos personas"
-              description="Encontramos al experto mas adecuado segun tus necesidades."
+              description="Encontramos al experto más adecuado según tus necesidades."
             />
             <TarjetaPaso
               icon={<Shield className="h-6 w-6" />}
@@ -155,7 +155,7 @@ export function LandingScreen() {
         {/* Pie de pagina */}
         <footer className="mt-14 mb-8 text-center">
           <p className="text-sm text-muted-foreground">
-            Hecho con carino para quienes mas saben
+            Hecho con cariño para quienes más saben
           </p>
         </footer>
       </main>
