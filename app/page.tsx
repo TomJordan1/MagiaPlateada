@@ -1,6 +1,21 @@
 /**
+ 
+ * page.tsx
+ * ---------
+ * Pagina principal de Magia Plateada.
+ *
+ * Estructura general:
+ * 1. AppProvider envuelve toda la app para proveer el estado global.
+ * 2. AppContent selecciona la pantalla activa segun el estado.
+ * 3. Los modales (ContactModal, NotificationOverlay) se renderizan siempre
+ *    pero solo son visibles cuando su estado "open" esta activo.
+ *
+ * En desktop, la app se muestra centrada con aspecto de telefono movil
+ * (max-w-lg, bordes redondeados, sombra) para mantener la experiencia mobile-first.
  * app/page.tsx
  * Página principal — AppProvider + AppContent con ParticlesBackground
+
+
  */
 "use client";
 
