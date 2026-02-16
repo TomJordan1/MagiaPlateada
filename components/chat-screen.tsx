@@ -358,7 +358,7 @@ function EncabezadoChat({
   rol: "client" | "expert" | null
   onVolver: () => void
 }) {
-  const subtitulo = rol === "client" ? "Buscando ayuda" : "Registro de experto"
+  const subtitulo = rol === "client" ? "Buscando ayuda" : "Brindando ayuda"
 
   return (
     <header className="flex items-center gap-3 border-b border-border bg-card px-4 py-4 shadow-sm">
