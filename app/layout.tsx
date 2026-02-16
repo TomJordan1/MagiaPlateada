@@ -8,7 +8,7 @@ const inter = Inter({ subsets: ['latin'], variable: '--font-inter' })
 const dmSerif = DM_Serif_Display({ weight: '400', subsets: ['latin'], variable: '--font-dm-serif' })
 
 export const metadata: Metadata = {
-  title: 'Magia Plateada - Conecta con la experiencia',
+  title: 'Magia Plateada - Conectando como si fuera magia',
   description: 'Plataforma que conecta adultos mayores expertos con personas que necesitan sus servicios. Experiencia, sabiduría y confianza.',
 }
 
