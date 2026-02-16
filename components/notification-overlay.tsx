@@ -167,7 +167,7 @@ function VistaSelectorFecha({
       </h3>
 
       <p className="mt-3 text-center text-sm text-muted-foreground">
-        Cuando te gustaria que te consultemos sobre el servicio?
+        ¿Cuándo te gustaría que te consultemos sobre el servicio?
       </p>
 
       {/* Opciones de periodo (se leen desde constants.ts) */}

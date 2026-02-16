@@ -29,7 +29,7 @@ export function StarRating({ onRate }: { onRate: (rating: number) => void }) {
   return (
     <div className="flex flex-col items-center gap-4 rounded-2xl bg-card border border-border p-6 shadow-sm animate-fade-in-up">
       <p className="text-base font-medium text-card-foreground">
-        Como calificarias el servicio?
+        ¿Cómo calificarías el servicio?
       </p>
 
       {/* Fila de 5 estrellas interactivas */}

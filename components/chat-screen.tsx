@@ -89,13 +89,13 @@ export function ChatScreen() {
     switch (paso) {
       case 0:
         guardarDato("service", valor)
-        enviarMensajeBot("Puedes darme mas detalles sobre lo que necesitas?")
+        enviarMensajeBot("¿Puedes darme más detalles sobre lo que necesitas?")
         setChatStep(1)
         break
 
       case 1:
         guardarDato("details", valor)
-        enviarMensajeBot("Prefieres que el servicio sea presencial o remoto?", [
+        enviarMensajeBot("¿Prefieres que el servicio sea presencial o remoto?", [
           { label: "Presencial", value: "presencial" },
           { label: "Remoto", value: "remoto" },
           { label: "Me da igual", value: "ambos" },
@@ -105,7 +105,7 @@ export function ChatScreen() {
 
       case 2:
         guardarDato("modality", valor)
-        enviarMensajeBot("En que zona te encuentras?", [
+        enviarMensajeBot("¿En qué zona te encuentras?", [
           { label: "Centro", value: "Centro" },
           { label: "Norte", value: "Norte" },
           { label: "Sur", value: "Sur" },
@@ -116,7 +116,7 @@ export function ChatScreen() {
 
       case 3:
         guardarDato("zone", valor)
-        enviarMensajeBot("Que tan urgente es para ti?", [
+        enviarMensajeBot("¿Qué tan urgente es para ti?", [
           { label: "Lo antes posible", value: "urgente" },
           { label: "Esta semana", value: "semana" },
           { label: "Sin prisa", value: "sin_prisa" },
@@ -128,7 +128,7 @@ export function ChatScreen() {
         // Ultimo paso: guardar urgencia y navegar a resultados
         guardarDato("urgency", valor)
         enviarMensajeBot(
-          "Perfecto! He encontrado algunos expertos que pueden ayudarte. Voy a mostrarte los resultados.",
+          "¡Perfecto! He encontrado algunos expertos que pueden ayudarte. Voy a mostrarte los resultados.",
           undefined,
           1000,
         )
@@ -162,7 +162,7 @@ export function ChatScreen() {
     switch (paso) {
       case 0:
         guardarDato("name", valor)
-        enviarMensajeBot("Que edad tienes? Recuerda que este espacio es para personas mayores de 50 anos.")
+        enviarMensajeBot("¿Qué edad tienes? Recuerda que este espacio es para personas mayores de 50 años.")
         setChatStep(1)
         break
 
@@ -177,9 +177,9 @@ export function ChatScreen() {
         }
         guardarDato("age", valor)
         enviarMensajeBot("Que tipo de servicio ofreces?", [
-          { label: "Clases o ensenanza", value: "clases" },
+          { label: "Clases o enseñanza", value: "clases" },
           { label: "Reparaciones", value: "reparaciones" },
-          { label: "Asesoria profesional", value: "asesoria" },
+          { label: "Asesoría profesional", value: "asesoria" },
           { label: "Oficios manuales", value: "oficios" },
           { label: "Otro", value: "otro" },
         ])
@@ -189,13 +189,13 @@ export function ChatScreen() {
 
       case 2:
         guardarDato("service", valor)
-        enviarMensajeBot("Cuentame sobre tu experiencia en este campo.")
+        enviarMensajeBot("Cuéntame sobre tu experiencia en este campo.")
         setChatStep(3)
         break
 
       case 3:
         guardarDato("experience", valor)
-        enviarMensajeBot("Cual es tu modalidad preferida?", [
+        enviarMensajeBot("¿Cuál es tu modalidad preferida?", [
           { label: "Presencial", value: "presencial" },
           { label: "Remoto", value: "remoto" },
           { label: "Ambos", value: "ambos" },
@@ -205,7 +205,7 @@ export function ChatScreen() {
 
       case 4:
         guardarDato("modality", valor)
-        enviarMensajeBot("En que zona te encuentras?", [
+        enviarMensajeBot("¿En qué zona te encuentras?", [
           { label: "Centro", value: "Centro" },
           { label: "Norte", value: "Norte" },
           { label: "Sur", value: "Sur" },
@@ -216,20 +216,20 @@ export function ChatScreen() {
 
       case 5:
         guardarDato("zone", valor)
-        enviarMensajeBot("Cuales son tus horarios disponibles? Por ejemplo: Lunes a Viernes, 10:00 - 14:00")
+        enviarMensajeBot("¿Cuáles son tus horarios disponibles? Por ejemplo: Lunes a Viernes, 10:00 - 14:00")
         setChatStep(6)
         break
 
       case 6:
         guardarDato("schedule", valor)
-        enviarMensajeBot("Por ultimo, cual es tu medio de contacto preferido? (WhatsApp, telefono, correo)")
+        enviarMensajeBot("Por último, ¿cuál es tu medio de contacto preferido? (WhatsApp, telefono, correo)")
         setChatStep(7)
         break
 
       case 7:
         guardarDato("contact", valor)
         enviarMensajeBot(
-          "Excelente! Tu perfil ha sido creado con exito. Ahora los usuarios podran encontrarte cuando busquen servicios como los tuyos. Puedes volver al inicio para ver como se ve tu perfil.",
+          "¡Excelente! Tu perfil ha sido creado con éxito. Ahora los usuarios podran encontrarte cuando busquen servicios como los tuyos. Puedes volver al inicio para ver como se ve tu perfil.",
           [{ label: "Volver al inicio", value: "home" }],
           1200,
         )

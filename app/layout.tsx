@@ -9,7 +9,7 @@ const dmSerif = DM_Serif_Display({ weight: '400', subsets: ['latin'], variable: 
 
 export const metadata: Metadata = {
   title: 'Magia Plateada - Conecta con la experiencia',
-  description: 'Plataforma que conecta adultos mayores expertos con personas que necesitan sus servicios. Experiencia, sabiduria y confianza.',
+  description: 'Plataforma que conecta adultos mayores expertos con personas que necesitan sus servicios. Experiencia, sabiduría y confianza.',
 }
 
 export const viewport: Viewport = {
@@ -17,7 +17,7 @@ export const viewport: Viewport = {
   width: 'device-width',
   initialScale: 1,
   maximumScale: 1,
-  userScalable: false,
+  userScalable: true,
 }
 
 export default function RootLayout({

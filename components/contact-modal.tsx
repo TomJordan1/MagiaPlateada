@@ -79,7 +79,7 @@ export function ContactModal() {
         {/* Nota informativa */}
         <div className="mt-2 rounded-xl bg-secondary p-4">
           <p className="text-sm text-secondary-foreground">
-            Se abrira WhatsApp para que puedas comunicarte directamente. El servicio se coordina entre ustedes.
+            Se abrirá WhatsApp para que puedas comunicarte directamente. El servicio se coordina entre ustedes.
           </p>
         </div>
 
@@ -90,7 +90,7 @@ export function ContactModal() {
             onClick={confirmarContacto}
           >
             <Phone className="mr-2 h-5 w-5" />
-            Si, contactar
+            Sí, contactar
           </Button>
           <Button
             variant="outline"

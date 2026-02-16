@@ -46,7 +46,7 @@ export function LandingScreen() {
       setTimeout(() => {
         addMessage({
           sender: "bot",
-          text: "Cuentame, ¿qué tipo de servicio estas buscando?",
+          text: "Cuéntame, ¿qué tipo de servicio estas buscando?",
           options: [
             { label: "Clases o enseñanza", value: "clases" },
             { label: "Reparaciones", value: "reparaciones" },
@@ -100,7 +100,7 @@ export function LandingScreen() {
       <main className="flex flex-1 flex-col items-center px-6 pt-6">
         <div className="mx-auto w-full max-w-md text-center">
           <h2 className="font-serif text-3xl leading-tight text-foreground text-balance md:text-4xl">
-            Conecta con la experiencia que necesitas
+            Conectando como si fuera magia
           </h2>
           <p className="mt-4 text-base leading-relaxed text-muted-foreground">
             Una plataforma donde adultos mayores comparten su experiencia y sabiduría con quienes la necesitan.
@@ -131,7 +131,7 @@ export function LandingScreen() {
         {/* Seccion explicativa: "Como funciona" */}
         <section className="mt-14 w-full max-w-md">
           <h3 className="text-center font-serif text-xl text-foreground mb-8">
-            Como funciona
+            Cómo funciona
           </h3>
           <div className="flex flex-col gap-6">
             <TarjetaPaso
