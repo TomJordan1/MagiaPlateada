@@ -79,19 +79,20 @@ export function LandingScreen() {
     if (isLoggedIn && authUser) {
       setChatStep(200) // Saltar auth, ir directo a gestion de experto
 
-      // Obtener perfil y sesiones pendientes del experto
+      // Obtener dashboard del senior: perfil + conteos urgente/pendiente/confirmado
       try {
         const res = await fetchWithAuth("/api/experts/me")
         const data = await res.json()
+        const urgentCount = data.urgentCount || 0
         const pendingCount = data.pendingSessions || 0
+        const confirmedCount = data.confirmedCount || 0
         const expertProfile = data.expert
 
         if (!expertProfile) {
-          // Tiene cuenta pero no perfil de experto aun
           setTimeout(() => {
             addMessage({
               sender: "bot",
-              text: `¡Hola, ${authUser.displayName}! Veo que aun no has completado tu perfil de experto. Vamos a crearlo.`,
+              text: `Hola, ${authUser.displayName}. Veo que aun no has completado tu perfil de experto. Vamos a crearlo.`,
             })
             setTimeout(() => {
               addMessage({
@@ -104,31 +105,52 @@ export function LandingScreen() {
           return
         }
 
-        const pendingText = pendingCount > 0
-          ? ` Tienes ${pendingCount} solicitud(es) de sesion pendiente(s).`
-          : ""
+        // Construir mensaje de estado con indicadores de color
+        let statusLines = `Hola, ${authUser.displayName}.`
+        if (urgentCount > 0) {
+          statusLines += `\n[URGENTE] Tienes ${urgentCount} solicitud(es) urgente(s).`
+        }
+        if (pendingCount > 0) {
+          statusLines += `\n[PENDIENTE] ${pendingCount} solicitud(es) pendiente(s).`
+        }
+        if (confirmedCount > 0) {
+          statusLines += `\n[CONFIRMADO] ${confirmedCount} sesion(es) confirmada(s).`
+        }
+        if (urgentCount === 0 && pendingCount === 0 && confirmedCount === 0) {
+          statusLines += "\nNo tienes solicitudes en este momento."
+        }
+        statusLines += "\n\n¿Que deseas hacer?"
+
+        // Construir botones dinamicos: solo mostrar los que tengan datos
+        const dynamicOptions = []
+        if (urgentCount > 0) {
+          dynamicOptions.push({ label: `[!] Ver urgentes (${urgentCount})`, value: "expert_view_urgent" })
+        }
+        if (pendingCount > 0) {
+          dynamicOptions.push({ label: `Solicitudes pendientes (${pendingCount})`, value: "expert_view_sessions" })
+        }
+        if (confirmedCount > 0) {
+          dynamicOptions.push({ label: `Sesiones confirmadas (${confirmedCount})`, value: "expert_view_confirmed" })
+        }
+        dynamicOptions.push(
+          { label: "Ver mi perfil", value: "expert_view_profile" },
+          { label: "Cambiar disponibilidad", value: "expert_change_status" },
+          { label: "Mejorar mi visibilidad", value: "expert_membership" },
+          { label: "Volver al inicio", value: "home" },
+        )
 
         setTimeout(() => {
           addMessage({
             sender: "bot",
-            text: `¡Hola, ${authUser.displayName}!${pendingText} ¿Que deseas hacer?`,
-            options: [
-              { label: "Ver mi perfil", value: "expert_view_profile" },
-              { label: "Editar mi informacion", value: "expert_edit_info" },
-              { label: "Cambiar disponibilidad", value: "expert_change_status" },
-              { label: "Membresia destacada", value: "expert_membership" },
-              ...(pendingCount > 0
-                ? [{ label: `Ver sesiones (${pendingCount})`, value: "expert_view_sessions" }]
-                : []),
-              { label: "Volver al inicio", value: "home" },
-            ],
+            text: statusLines,
+            options: dynamicOptions,
           })
         }, 500)
       } catch {
         setTimeout(() => {
           addMessage({
             sender: "bot",
-            text: `¡Hola, ${authUser.displayName}! ¿Que deseas hacer?`,
+            text: `Hola, ${authUser.displayName}. ¿Que deseas hacer?`,
             options: [
               { label: "Ver mi perfil", value: "expert_view_profile" },
               { label: "Cambiar disponibilidad", value: "expert_change_status" },

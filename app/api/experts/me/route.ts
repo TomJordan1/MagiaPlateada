@@ -31,12 +31,28 @@ export async function GET(req: Request) {
 
     const e = expertResult[0]
 
-    // Contar sesiones pendientes donde este experto es el destinatario
-    const pendingResult = await sql`
-      SELECT COUNT(*) as count FROM sessions
-      WHERE expert_id = ${e.id} AND status = 'pending'
+    // Contar sesiones por estado donde este experto es el destinatario
+    const countsResult = await sql`
+      SELECT status, COUNT(*) as count FROM sessions
+      WHERE expert_id = ${e.id} AND status IN ('pending', 'accepted')
+      GROUP BY status
     `
-    const pendingSessions = parseInt(pendingResult[0].count) || 0
+    let pendingCount = 0
+    let confirmedCount = 0
+    for (const row of countsResult) {
+      if (row.status === "pending") pendingCount = parseInt(row.count) || 0
+      if (row.status === "accepted") confirmedCount = parseInt(row.count) || 0
+    }
+
+    // Sesiones urgentes = pendientes con fecha en las proximas 24h
+    const urgentResult = await sql`
+      SELECT COUNT(*) as count FROM sessions
+      WHERE expert_id = ${e.id}
+        AND status = 'pending'
+        AND requested_date IS NOT NULL
+        AND requested_date::date <= (CURRENT_DATE + INTERVAL '1 day')
+    `
+    const urgentCount = parseInt(urgentResult[0].count) || 0
 
     return NextResponse.json({
       expert: {
@@ -58,7 +74,9 @@ export async function GET(req: Request) {
         isFeatured: e.is_featured,
         membershipType: e.membership_type,
       },
-      pendingSessions,
+      pendingSessions: pendingCount,
+      urgentCount,
+      confirmedCount,
     })
   } catch (error) {
     console.error("Error obteniendo perfil de experto:", error)

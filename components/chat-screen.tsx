@@ -16,8 +16,8 @@
 import { useApp, type ChatOption } from "@/lib/app-context"
 import { EDAD_MINIMA_EXPERTO } from "@/lib/constants"
 import { Button } from "@/components/ui/button"
-import { ArrowLeft, Send, Star, CreditCard, LogOut } from "lucide-react"
-import { useEffect, useRef, useState } from "react"
+import { ArrowLeft, Send, Star, CreditCard, LogOut, Lock } from "lucide-react"
+import { useEffect, useRef, useState, useCallback } from "react"
 
 // ───────────────────────────────────────────
 //  Componente principal: ChatScreen
@@ -50,6 +50,19 @@ export function ChatScreen() {
   const [inputValue, setInputValue] = useState("")
   const [estaCargando, setEstaCargando] = useState(false)
   const [inputType, setInputType] = useState<"text" | "email" | "password">("text")
+  const [toastMessage, setToastMessage] = useState("")
+  const toastTimeoutRef = useRef<NodeJS.Timeout | null>(null)
+
+  // ─── Input blocking: deshabilitar input en estados de menu (solo botones) ───
+  // Pasos que son "solo botones": menu principal (0, 99, 100, 102-104, 200, 210, 220, 230, 240, 303, 399, 400, 401)
+  const BUTTON_ONLY_STEPS = new Set([0, 99, 100, 102, 103, 104, 200, 210, 220, 230, 240, 303, 399, 400, 401])
+  const isInputBlocked = BUTTON_ONLY_STEPS.has(chatStep)
+
+  const showToast = useCallback((msg: string) => {
+    if (toastTimeoutRef.current) clearTimeout(toastTimeoutRef.current)
+    setToastMessage(msg)
+    toastTimeoutRef.current = setTimeout(() => setToastMessage(""), 3000)
+  }, [])
 
   useEffect(() => {
     if (scrollRef.current) {
@@ -389,6 +402,10 @@ export function ChatScreen() {
           await mostrarInfoMembresia()
         } else if (valor === "expert_view_sessions") {
           await mostrarSesionesPendientes()
+        } else if (valor === "expert_view_urgent") {
+          await mostrarSesionesUrgentes()
+        } else if (valor === "expert_view_confirmed") {
+          await mostrarSesionesConfirmadas()
         } else if (valor === "expert_menu") {
           // Volver al menu de gestion
           enviarMensajeBot("¿Que mas deseas hacer?", [
@@ -852,7 +869,7 @@ export function ChatScreen() {
 
       case 301:
         guardarDato("sessionTime", valor)
-        enviarMensajeBot("¿Que duracion aproximada necesitas?", [
+        enviarMensajeBot("��Que duracion aproximada necesitas?", [
           { label: "30 minutos", value: "30 minutos" },
           { label: "1 hora", value: "1 hora" },
           { label: "2 horas", value: "2 horas" },
@@ -1029,6 +1046,7 @@ export function ChatScreen() {
   // ─── Manejo de envio de mensajes ───
 
   function enviarMensajeUsuario(valorDirecto?: string) {
+    if (isInputBlocked && !valorDirecto) return
     const texto = valorDirecto || inputValue.trim()
     if (!texto) return
 
@@ -1115,27 +1133,45 @@ export function ChatScreen() {
           }}
           className="mx-auto flex max-w-lg items-center gap-3"
         >
-          <input
-            ref={inputRef}
-            type={inputType}
-            value={inputValue}
-            onChange={(e) => setInputValue(e.target.value)}
-            placeholder={
-              inputType === "email"
-                ? "tu@correo.com"
-                : inputType === "password"
-                  ? "Tu contrasena..."
-                  : "Escribe tu mensaje..."
-            }
-            className="flex-1 rounded-full border-2 border-input bg-background px-5 py-3.5 text-base text-foreground placeholder:text-muted-foreground focus:border-primary focus:outline-none transition-colors"
-          />
+          <div className="relative flex-1">
+            {isInputBlocked && (
+              <Lock className="pointer-events-none absolute left-4 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+            )}
+            <input
+              ref={inputRef}
+              type={inputType}
+              value={isInputBlocked ? "" : inputValue}
+              onChange={(e) => {
+                if (!isInputBlocked) setInputValue(e.target.value)
+              }}
+              disabled={isInputBlocked}
+              placeholder={
+                isInputBlocked
+                  ? "Usa los botones para continuar"
+                  : inputType === "email"
+                    ? "tu@correo.com"
+                    : inputType === "password"
+                      ? "Tu contrasena..."
+                      : "Escribe tu mensaje..."
+              }
+              className={`w-full rounded-full border-2 px-5 py-3.5 text-base transition-colors focus:outline-none ${
+                isInputBlocked
+                  ? "border-muted bg-muted pl-10 text-muted-foreground cursor-not-allowed placeholder:text-muted-foreground/70"
+                  : "border-input bg-background text-foreground placeholder:text-muted-foreground focus:border-primary"
+              }`}
+            />
+          </div>
           <Button
             type="submit"
             size="icon"
             className="h-12 w-12 shrink-0 rounded-full"
-            disabled={!inputValue.trim()}
+            disabled={isInputBlocked || !inputValue.trim()}
           >
-            <Send className="h-5 w-5" />
+            {isInputBlocked ? (
+              <Lock className="h-5 w-5" />
+            ) : (
+              <Send className="h-5 w-5" />
+            )}
             <span className="sr-only">Enviar mensaje</span>
           </Button>
         </form>
