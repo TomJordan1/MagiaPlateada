@@ -45,6 +45,12 @@ export function textoModalidad(modalidad: string): string {
 /** Edad minima para registrarse como experto en la plataforma */
 export const EDAD_MINIMA_EXPERTO = 50
 
+/** Creditos de bienvenida para nuevos clientes */
+export const CREDITOS_BIENVENIDA = 3
+
+/** Costo en creditos por sesion */
+export const COSTO_SESION = 1
+
 /** Dias por defecto para el seguimiento post-servicio */
 export const DIAS_SEGUIMIENTO_DEFECTO = 7
 

@@ -1,13 +1,11 @@
 /**
  * contact-modal.tsx
  * ------------------
- * Modal de confirmacion de contacto.
+ * Modal de confirmacion de sesion.
  *
- * Se abre cuando el usuario presiona "Contactar" en el perfil de un experto.
- * Ofrece dos opciones:
- *   1. "Si, contactar" -> abre WhatsApp con el numero del experto
- *      y luego muestra el overlay de seguimiento (notificacion).
- *   2. "Buscar otro experto" -> vuelve a la lista de resultados.
+ * Ahora muestra un resumen de la solicitud de sesion
+ * antes de que el usuario confirme en el chat.
+ * Ya no redirige a WhatsApp.
  */
 "use client"
 
@@ -21,40 +19,42 @@ import {
   DialogFooter,
 } from "@/components/ui/dialog"
 import { Button } from "@/components/ui/button"
-import { Phone, Search } from "lucide-react"
+import { CalendarPlus, Search } from "lucide-react"
 
 export function ContactModal() {
   const {
     contactModalOpen,
     setContactModalOpen,
     selectedExpert,
-    setNotificationOverlayOpen,
     setScreen,
+    addMessage,
+    setChatStep,
+    role,
+    setRole,
   } = useApp()
 
-  // No renderizar si no hay experto seleccionado
   if (!selectedExpert) return null
 
-  /**
-   * Confirma el contacto: abre WhatsApp y programa el overlay de seguimiento.
-   * El numero de telefono se limpia de caracteres no numericos para generar
-   * la URL de WhatsApp correctamente.
-   */
-  function confirmarContacto() {
+  function confirmarSolicitud() {
     setContactModalOpen(false)
+    if (!role) setRole("client")
+    setScreen("chat")
 
-    // Construir la URL de WhatsApp quitando espacios, guiones, parentesis, etc.
-    const numeroLimpio = selectedExpert?.contact.replace(/\D/g, "")
-    const urlWhatsApp = `https://wa.me/${numeroLimpio}`
-    window.open(urlWhatsApp, "_blank")
-
-    // Mostrar el overlay de seguimiento tras medio segundo
     setTimeout(() => {
-      setNotificationOverlayOpen(true)
-    }, 500)
+      addMessage({
+        sender: "bot",
+        text: `Vas a solicitar una sesion con ${selectedExpert?.name}. ¿Para que fecha te gustaria?`,
+        options: [
+          { label: "Hoy", value: "Hoy" },
+          { label: "Manana", value: "Manana" },
+          { label: "Esta semana", value: "Esta semana" },
+          { label: "La proxima semana", value: "La proxima semana" },
+        ],
+      })
+      setChatStep(300)
+    }, 300)
   }
 
-  /** Cancela y vuelve a la lista de resultados para buscar otro experto */
   function buscarOtroExperto() {
     setContactModalOpen(false)
     setScreen("results")
@@ -65,10 +65,10 @@ export function ContactModal() {
       <DialogContent className="mx-4 max-w-sm rounded-2xl">
         <DialogHeader className="text-center">
           <DialogTitle className="font-serif text-xl text-foreground">
-            Confirmar contacto
+            Solicitar sesion
           </DialogTitle>
           <DialogDescription className="mt-2 text-base text-muted-foreground leading-relaxed">
-            Deseas coordinar el servicio con{" "}
+            ¿Deseas solicitar una sesion con{" "}
             <span className="font-semibold text-foreground">
               {selectedExpert.name}
             </span>
@@ -76,21 +76,19 @@ export function ContactModal() {
           </DialogDescription>
         </DialogHeader>
 
-        {/* Nota informativa */}
         <div className="mt-2 rounded-xl bg-secondary p-4">
           <p className="text-sm text-secondary-foreground">
-            Se abrirá WhatsApp para que puedas comunicarte directamente. El servicio se coordina entre ustedes.
+            Se te guiara por el chat para elegir fecha, hora y duracion. El costo es de 1 credito por sesion.
           </p>
         </div>
 
-        {/* Botones de accion */}
         <DialogFooter className="mt-4 flex flex-col gap-3 sm:flex-col">
           <Button
             className="h-14 w-full rounded-xl text-base font-medium"
-            onClick={confirmarContacto}
+            onClick={confirmarSolicitud}
           >
-            <Phone className="mr-2 h-5 w-5" />
-            Sí, contactar
+            <CalendarPlus className="mr-2 h-5 w-5" />
+            Si, solicitar sesion
           </Button>
           <Button
             variant="outline"

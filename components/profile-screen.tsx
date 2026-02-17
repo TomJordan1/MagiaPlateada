@@ -3,12 +3,9 @@
  * -------------------
  * Pantalla de perfil detallado de un experto.
  *
- * Muestra toda la informacion del experto seleccionado:
- * - Avatar grande con iniciales
- * - Nombre, servicio y estado de disponibilidad
- * - Calificacion con estrellas
- * - Detalles: experiencia, zona, modalidad, horario y contacto
- * - Boton prominente para contactar (abre el modal de confirmacion)
+ * Cambio principal: el boton "Contactar" ahora inicia el flujo de
+ * "Solicitar sesion" dentro del chat (en vez de abrir WhatsApp).
+ * Muestra badge de "Destacado" si el experto tiene membresia.
  */
 "use client"
 
@@ -23,27 +20,82 @@ import {
   Star,
   MapPin,
   Clock,
-  Phone,
   Briefcase,
   Calendar,
+  CalendarPlus,
+  Award,
 } from "lucide-react"
 
-// ───────────────────────────────────────────
-//  Componente principal: ProfileScreen
-// ───────────────────────────────────────────
-
 export function ProfileScreen() {
-  const { selectedExpert, setScreen, setContactModalOpen } = useApp()
+  const {
+    selectedExpert,
+    setScreen,
+    isLoggedIn,
+    addMessage,
+    setChatStep,
+    setSearchData,
+    searchData,
+    role,
+    setRole,
+    authUser,
+  } = useApp()
 
-  // Si no hay experto seleccionado, no renderizar nada
   if (!selectedExpert) return null
 
-  /** Extrae solo el primer nombre para el boton de contacto */
   const primerNombre = selectedExpert.name.split(" ")[0]
+
+  /** Inicia el flujo de solicitud de sesion dentro del chat */
+  function iniciarSolicitudSesion() {
+    if (!isLoggedIn) {
+      // Si no esta logueado, redirigir a auth primero
+      setRole("client")
+      setScreen("chat")
+      setTimeout(() => {
+        addMessage({
+          sender: "bot",
+          text: "Para solicitar una sesion necesitas iniciar sesion primero.",
+        })
+        setTimeout(() => {
+          addMessage({
+            sender: "bot",
+            text: "¿Que prefieres?",
+            options: [
+              { label: "Iniciar sesion", value: "login" },
+              { label: "Crear cuenta nueva", value: "register" },
+            ],
+          })
+        }, 800)
+      }, 300)
+      return
+    }
+
+    // Ya esta logueado, iniciar flujo de solicitud de sesion
+    setScreen("chat")
+    if (!role) setRole("client")
+
+    setTimeout(() => {
+      addMessage({
+        sender: "bot",
+        text: `Vas a solicitar una sesion con ${selectedExpert.name}. Servicio: ${selectedExpert.service}.`,
+      })
+      setTimeout(() => {
+        addMessage({
+          sender: "bot",
+          text: "¿Para que fecha te gustaria la sesion?",
+          options: [
+            { label: "Hoy", value: "Hoy" },
+            { label: "Manana", value: "Manana" },
+            { label: "Esta semana", value: "Esta semana" },
+            { label: "La proxima semana", value: "La proxima semana" },
+          ],
+        })
+        setChatStep(300)
+      }, 1000)
+    }, 300)
+  }
 
   return (
     <div className="flex min-h-screen flex-col bg-background">
-      {/* Encabezado con boton volver */}
       <header className="flex items-center gap-3 border-b border-border bg-card px-4 py-4 shadow-sm">
         <button
           onClick={() => setScreen("results")}
@@ -55,10 +107,9 @@ export function ProfileScreen() {
         <h1 className="text-lg font-semibold text-card-foreground">Perfil del experto</h1>
       </header>
 
-      {/* Contenido del perfil */}
       <main className="flex-1 px-4 py-6">
         <div className="mx-auto max-w-lg">
-          {/* Cabecera del perfil: avatar, nombre, estado y calificacion */}
+          {/* Cabecera del perfil */}
           <div className="flex flex-col items-center text-center animate-fade-in-up">
             <Avatar className="h-24 w-24">
               <AvatarFallback className="bg-primary text-primary-foreground text-2xl font-bold">
@@ -69,7 +120,7 @@ export function ProfileScreen() {
             <h2 className="mt-4 font-serif text-2xl text-foreground">{selectedExpert.name}</h2>
             <p className="mt-1 text-base text-muted-foreground">{selectedExpert.service}</p>
 
-            {/* Badge de disponibilidad */}
+            {/* Badges: estado + destacado */}
             <div className="mt-3 flex items-center gap-2">
               <Badge
                 variant="secondary"
@@ -77,9 +128,18 @@ export function ProfileScreen() {
               >
                 {ETIQUETA_ESTADO[selectedExpert.status]}
               </Badge>
+              {selectedExpert.isFeatured && (
+                <Badge
+                  variant="secondary"
+                  className="bg-accent/15 text-accent border-0 text-sm font-medium px-3 py-1"
+                >
+                  <Award className="mr-1 h-3.5 w-3.5" />
+                  Destacado
+                </Badge>
+              )}
             </div>
 
-            {/* Estrellas de calificacion */}
+            {/* Estrellas */}
             <div className="mt-4 flex items-center gap-2">
               <div className="flex items-center gap-1">
                 {Array.from({ length: 5 }).map((_, i) => (
@@ -102,7 +162,7 @@ export function ProfileScreen() {
             </div>
           </div>
 
-          {/* Filas de detalle: experiencia, zona, modalidad, horario, contacto */}
+          {/* Detalles */}
           <div className="mt-8 flex flex-col gap-4 animate-fade-in-up" style={{ animationDelay: "150ms" }}>
             <FilaDetalle
               icon={<Briefcase className="h-5 w-5" />}
@@ -124,21 +184,25 @@ export function ProfileScreen() {
               etiqueta="Horario"
               valor={selectedExpert.schedule}
             />
-            <FilaDetalle
-              icon={<Phone className="h-5 w-5" />}
-              etiqueta="Contacto"
-              valor={selectedExpert.contact}
-            />
           </div>
 
-          {/* Boton de contacto principal */}
-          <div className="mt-10 animate-fade-in-up" style={{ animationDelay: "300ms" }}>
+          {/* Creditos disponibles (si esta logueado) */}
+          {isLoggedIn && authUser && (
+            <div className="mt-6 rounded-xl bg-secondary p-4 text-center animate-fade-in-up" style={{ animationDelay: "250ms" }}>
+              <p className="text-sm text-secondary-foreground">
+                Tienes <span className="font-bold text-foreground">{authUser.credits} creditos</span> disponibles. Solicitar una sesion cuesta 1 credito.
+              </p>
+            </div>
+          )}
+
+          {/* Boton de solicitar sesion (reemplaza "Contactar via WhatsApp") */}
+          <div className="mt-6 animate-fade-in-up" style={{ animationDelay: "300ms" }}>
             <Button
               className="h-16 w-full rounded-2xl text-lg font-medium"
-              onClick={() => setContactModalOpen(true)}
+              onClick={iniciarSolicitudSesion}
             >
-              <Phone className="mr-2 h-5 w-5" />
-              Contactar a {primerNombre}
+              <CalendarPlus className="mr-2 h-5 w-5" />
+              Solicitar sesion con {primerNombre}
             </Button>
           </div>
         </div>
@@ -147,14 +211,6 @@ export function ProfileScreen() {
   )
 }
 
-// ───────────────────────────────────────────
-//  Subcomponente: fila de detalle del perfil
-// ───────────────────────────────────────────
-
-/**
- * FilaDetalle: muestra un icono, etiqueta y valor dentro de una
- * tarjeta horizontal. Se usa para cada dato del experto.
- */
 function FilaDetalle({
   icon,
   etiqueta,

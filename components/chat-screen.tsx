@@ -3,24 +3,20 @@
  * ----------------
  * Pantalla de chat principal de Magia Plateada.
  *
- * Muestra una interfaz tipo mensajeria (similar a WhatsApp) donde el bot
- * guia al usuario paso a paso. Hay dos flujos distintos segun el rol:
+ * Flujos implementados:
+ * - CLIENTE: autenticacion -> busqueda -> resultados
+ * - EXPERTO: autenticacion -> registro de perfil
+ * - SESION: solicitud de sesion con fecha/hora/duracion
+ * - POST-SESION: verificacion y calificacion multidimensional
  *
- * - CLIENTE: el bot pregunta que servicio necesita, detalles, modalidad,
- *   zona y urgencia; luego muestra los resultados.
- *
- * - EXPERTO: el bot recoge nombre, edad, servicio, experiencia, modalidad,
- *   zona, horario y contacto para crear su perfil.
- *
- * Cada "paso" del flujo se controla con un numero (chatStep) que avanza
- * conforme el usuario responde.
+ * Todo el flujo de autenticacion ocurre dentro del chat, sin pantallas nuevas.
  */
 "use client"
 
 import { useApp, type ChatOption } from "@/lib/app-context"
 import { EDAD_MINIMA_EXPERTO } from "@/lib/constants"
 import { Button } from "@/components/ui/button"
-import { ArrowLeft, Send, Star } from "lucide-react"
+import { ArrowLeft, Send, Star, CreditCard, LogOut } from "lucide-react"
 import { useEffect, useRef, useState } from "react"
 
 // ───────────────────────────────────────────
@@ -38,26 +34,31 @@ export function ChatScreen() {
     setScreen,
     searchData,
     setSearchData,
+    authUser,
+    setAuthUser,
+    setAuthToken,
+    isLoggedIn,
+    logout,
+    loadExperts,
+    fetchWithAuth,
+    selectedExpert,
+    setActiveSession,
   } = useApp()
 
   const scrollRef = useRef<HTMLDivElement>(null)
   const inputRef = useRef<HTMLInputElement>(null)
   const [inputValue, setInputValue] = useState("")
-  const [estaCargando, setEstaCargando] = useState(false) // indicador de "escribiendo..."
+  const [estaCargando, setEstaCargando] = useState(false)
+  const [inputType, setInputType] = useState<"text" | "email" | "password">("text")
 
-  // Auto-scroll al fondo cuando llegan nuevos mensajes o el bot "escribe"
   useEffect(() => {
     if (scrollRef.current) {
       scrollRef.current.scrollTop = scrollRef.current.scrollHeight
     }
   }, [messages, estaCargando])
 
-  // ─── Funciones auxiliares del chat ───
+  // ─── Funciones auxiliares ───
 
-  /**
-   * Envia un mensaje del bot con un retraso simulado.
-   * Mientras espera, muestra el indicador de "escribiendo...".
-   */
   function enviarMensajeBot(texto: string, opciones?: ChatOption[], retrasoMs = 800) {
     setEstaCargando(true)
     setTimeout(() => {
@@ -66,76 +67,282 @@ export function ChatScreen() {
     }, retrasoMs)
   }
 
-  /**
-   * Actualiza los datos de busqueda/registro acumulados.
-   * Cada paso del flujo guarda su respuesta aqui.
-   */
+  function enviarMensajeBotSecuencia(mensajes: { texto: string; opciones?: ChatOption[] }[], retrasoBase = 800) {
+    mensajes.forEach((msg, i) => {
+      setTimeout(() => {
+        if (i === mensajes.length - 1) {
+          setEstaCargando(false)
+        }
+        addMessage({ sender: "bot", text: msg.texto, options: msg.opciones })
+      }, retrasoBase * (i + 1))
+    })
+    if (mensajes.length > 0) setEstaCargando(true)
+  }
+
   function guardarDato(campo: string, valor: string) {
     setSearchData({ ...searchData, [campo]: valor })
   }
 
-  // ─── Flujo del CLIENTE (buscar ayuda) ───
+  // ───────────────────────────────────────
+  //  FLUJO DE AUTENTICACION (pasos 0-99)
+  //  Pasos: 0=pregunta login/registro, 1=email, 2=password,
+  //         3=confirmar password (solo registro), 4=nombre (solo registro)
+  // ───────────────────────────────────────
 
-  /**
-   * Procesa cada paso del flujo de busqueda del cliente.
-   * Los pasos son:
-   *   0 -> Tipo de servicio seleccionado
-   *   1 -> Detalles proporcionados (texto libre)
-   *   2 -> Modalidad seleccionada (presencial/remoto/ambos)
-   *   3 -> Zona seleccionada
-   *   4 -> Urgencia seleccionada -> navega a resultados
-   */
+  async function procesarPasoAuth(valor: string, paso: number) {
+    switch (paso) {
+      case 0: {
+        // Eligio "Iniciar sesion" o "Crear cuenta"
+        if (valor === "login") {
+          guardarDato("authMode", "login")
+          setInputType("email")
+          enviarMensajeBot("Por favor, ingresa tu correo electronico:")
+          setChatStep(1)
+        } else if (valor === "register") {
+          guardarDato("authMode", "register")
+          setInputType("email")
+          enviarMensajeBot("Vamos a crear tu cuenta. Primero, ingresa tu correo electronico:")
+          setChatStep(1)
+        }
+        break
+      }
+      case 1: {
+        // Email ingresado
+        const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
+        if (!emailRegex.test(valor)) {
+          enviarMensajeBot("Ese correo no parece valido. Por favor ingresa un correo electronico correcto:")
+          return
+        }
+        guardarDato("email", valor)
+        setInputType("password")
+        enviarMensajeBot("Ahora ingresa tu contrasena (minimo 6 caracteres):")
+        setChatStep(2)
+        break
+      }
+      case 2: {
+        // Password ingresado
+        if (valor.length < 6) {
+          enviarMensajeBot("La contrasena debe tener al menos 6 caracteres. Intenta de nuevo:")
+          return
+        }
+        guardarDato("password", valor)
+
+        if (searchData.authMode === "login") {
+          // Intentar login
+          setInputType("text")
+          await intentarLogin(searchData.email || "", valor)
+        } else {
+          // Registro: pedir confirmacion de password
+          enviarMensajeBot("Confirma tu contrasena:")
+          setChatStep(3)
+        }
+        break
+      }
+      case 3: {
+        // Confirmar password (solo registro)
+        if (valor !== searchData.password) {
+          enviarMensajeBot("Las contrasenas no coinciden. Confirma tu contrasena nuevamente:")
+          return
+        }
+        setInputType("text")
+        enviarMensajeBot("¿Como te gustaria que te llamemos?")
+        setChatStep(4)
+        break
+      }
+      case 4: {
+        // Nombre (solo registro)
+        guardarDato("displayName", valor)
+        await intentarRegistro(
+          searchData.email || "",
+          searchData.password || "",
+          valor,
+          role || "client"
+        )
+        break
+      }
+    }
+  }
+
+  async function intentarLogin(email: string, password: string) {
+    setEstaCargando(true)
+    try {
+      const res = await fetch("/api/auth/login", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email, password }),
+      })
+      const data = await res.json()
+      setEstaCargando(false)
+
+      if (!res.ok) {
+        addMessage({ sender: "bot", text: data.error || "Error al iniciar sesion." })
+        addMessage({
+          sender: "bot",
+          text: "¿Deseas intentar de nuevo?",
+          options: [
+            { label: "Intentar de nuevo", value: "retry_login" },
+            { label: "Crear cuenta nueva", value: "switch_register" },
+            { label: "Volver al inicio", value: "home" },
+          ],
+        })
+        setChatStep(99) // paso especial para reintentos
+        return
+      }
+
+      // Login exitoso
+      setAuthToken(data.token)
+      setAuthUser(data.user)
+      iniciarFlujoPostAuth(data.user)
+    } catch {
+      setEstaCargando(false)
+      addMessage({ sender: "bot", text: "Hubo un error de conexion. Intenta de nuevo mas tarde." })
+    }
+  }
+
+  async function intentarRegistro(email: string, password: string, displayName: string, userRole: string) {
+    setEstaCargando(true)
+    try {
+      const res = await fetch("/api/auth/register", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email, password, displayName, role: userRole }),
+      })
+      const data = await res.json()
+      setEstaCargando(false)
+
+      if (!res.ok) {
+        addMessage({ sender: "bot", text: data.error || "Error al crear la cuenta." })
+        addMessage({
+          sender: "bot",
+          text: "¿Que deseas hacer?",
+          options: [
+            { label: "Intentar de nuevo", value: "retry_register" },
+            { label: "Iniciar sesion", value: "switch_login" },
+            { label: "Volver al inicio", value: "home" },
+          ],
+        })
+        setChatStep(99)
+        return
+      }
+
+      // Registro exitoso
+      setAuthToken(data.token)
+      setAuthUser(data.user)
+
+      if (userRole === "client") {
+        enviarMensajeBotSecuencia([
+          { texto: `¡Bienvenido/a, ${displayName}! Tu cuenta ha sido creada exitosamente.` },
+          { texto: `Has recibido ${data.user.credits} creditos de bienvenida para solicitar sesiones con nuestros expertos.` },
+        ])
+        // Continuar flujo de busqueda despues del registro
+        setTimeout(() => {
+          iniciarFlujoBusqueda()
+        }, 2500)
+      } else {
+        enviarMensajeBot(`¡Bienvenido/a, ${displayName}! Tu cuenta de experto ha sido creada. Ahora vamos a completar tu perfil profesional.`)
+        setTimeout(() => {
+          iniciarFlujoRegistroExperto()
+        }, 1500)
+      }
+    } catch {
+      setEstaCargando(false)
+      addMessage({ sender: "bot", text: "Hubo un error de conexion. Intenta de nuevo mas tarde." })
+    }
+  }
+
+  /** Despues de login exitoso, redirige al flujo correcto segun el rol */
+  function iniciarFlujoPostAuth(user: { role: string; displayName: string; credits: number }) {
+    if (user.role === "client" || role === "client") {
+      enviarMensajeBot(`¡Hola de nuevo, ${user.displayName}! Tienes ${user.credits} creditos disponibles. Vamos a encontrarte un experto.`)
+      setTimeout(() => {
+        iniciarFlujoBusqueda()
+      }, 1500)
+    } else {
+      enviarMensajeBot(`¡Hola de nuevo, ${user.displayName}! ¿Que deseas hacer?`, [
+        { label: "Ver mi perfil", value: "expert_view_profile" },
+        { label: "Cambiar disponibilidad", value: "expert_change_status" },
+        { label: "Volver al inicio", value: "home" },
+      ])
+      setChatStep(200) // pasos de gestion de experto
+    }
+  }
+
+  // ───────────────────────────────────────
+  //  FLUJO CLIENTE: busqueda (pasos 100-110)
+  // ───────────────────────────────────────
+
+  function iniciarFlujoBusqueda() {
+    addMessage({
+      sender: "bot",
+      text: "Cuentame, ¿que tipo de servicio estas buscando?",
+      options: [
+        { label: "Clases o ensenanza", value: "clases" },
+        { label: "Reparaciones", value: "reparaciones" },
+        { label: "Asesoria profesional", value: "asesoria" },
+        { label: "Oficios manuales", value: "oficios" },
+        { label: "Otro servicio", value: "otro" },
+      ],
+    })
+    setChatStep(100)
+  }
+
   function procesarPasoCliente(valor: string, paso: number) {
     switch (paso) {
-      case 0:
+      case 100:
         guardarDato("service", valor)
-        enviarMensajeBot("¿Puedes darme más detalles sobre lo que necesitas?")
-        setChatStep(1)
+        enviarMensajeBot("¿Puedes darme mas detalles sobre lo que necesitas?")
+        setChatStep(101)
         break
 
-      case 1:
+      case 101:
         guardarDato("details", valor)
         enviarMensajeBot("¿Prefieres que el servicio sea presencial o remoto?", [
           { label: "Presencial", value: "presencial" },
           { label: "Remoto", value: "remoto" },
           { label: "Me da igual", value: "ambos" },
         ])
-        setChatStep(2)
+        setChatStep(102)
         break
 
-      case 2:
+      case 102:
         guardarDato("modality", valor)
-        enviarMensajeBot("¿En qué zona te encuentras?", [
+        enviarMensajeBot("¿En que zona te encuentras?", [
           { label: "Centro", value: "Centro" },
           { label: "Norte", value: "Norte" },
           { label: "Sur", value: "Sur" },
           { label: "Este", value: "Este" },
+          { label: "Cualquier zona", value: "cualquiera" },
         ])
-        setChatStep(3)
+        setChatStep(103)
         break
 
-      case 3:
+      case 103:
         guardarDato("zone", valor)
-        enviarMensajeBot("¿Qué tan urgente es para ti?", [
+        enviarMensajeBot("¿Que tan urgente es para ti?", [
           { label: "Lo antes posible", value: "urgente" },
           { label: "Esta semana", value: "semana" },
           { label: "Sin prisa", value: "sin_prisa" },
         ])
-        setChatStep(4)
+        setChatStep(104)
         break
 
-      case 4:
-        // Ultimo paso: guardar urgencia y navegar a resultados
+      case 104:
         guardarDato("urgency", valor)
         enviarMensajeBot(
-          "¡Perfecto! He encontrado algunos expertos que pueden ayudarte. Voy a mostrarte los resultados.",
+          "¡Perfecto! He encontrado expertos que pueden ayudarte. Voy a mostrarte los resultados.",
           undefined,
           1000,
         )
+        // Cargar expertos filtrados desde la DB
+        loadExperts({
+          zone: searchData.zone || "",
+          modality: searchData.modality || "",
+          service_category: searchData.service || "",
+        })
         setTimeout(() => {
           setScreen("results")
         }, 2500)
-        setChatStep(5)
+        setChatStep(105)
         break
 
       default:
@@ -143,100 +350,149 @@ export function ChatScreen() {
     }
   }
 
-  // ─── Flujo del EXPERTO (registro) ───
+  // ───────────────────────────────────────
+  //  FLUJO EXPERTO: registro de perfil (pasos 200-210)
+  // ───────────────────────────────────────
 
-  /**
-   * Procesa cada paso del flujo de registro del experto.
-   * Los pasos son:
-   *   0 -> Nombre completo
-   *   1 -> Edad (valida >= 50)
-   *   2 -> Tipo de servicio
-   *   3 -> Experiencia (texto libre)
-   *   4 -> Modalidad preferida
-   *   5 -> Zona
-   *   6 -> Horarios disponibles
-   *   7 -> Contacto -> muestra confirmacion
-   *   8 -> Volver al inicio
-   */
-  function procesarPasoExperto(valor: string, paso: number) {
+  function iniciarFlujoRegistroExperto() {
+    addMessage({
+      sender: "bot",
+      text: "Para comenzar tu perfil profesional, ¿cual es tu nombre completo?",
+    })
+    setChatStep(201)
+  }
+
+  async function procesarPasoExperto(valor: string, paso: number) {
     switch (paso) {
-      case 0:
+      case 200: {
+        // Menu de gestion de experto post-login
+        if (valor === "expert_view_profile" || valor === "expert_change_status") {
+          enviarMensajeBot("Esta funcionalidad estara disponible pronto. ¿Deseas hacer algo mas?", [
+            { label: "Volver al inicio", value: "home" },
+          ])
+          setChatStep(200)
+        }
+        break
+      }
+      case 201:
         guardarDato("name", valor)
-        enviarMensajeBot("¿Qué edad tienes? Recuerda que este espacio es para personas mayores de 50 años.")
-        setChatStep(1)
+        enviarMensajeBot("¿Que edad tienes? Recuerda que este espacio es para personas mayores de 50 anos.")
+        setChatStep(202)
         break
 
-      case 1: {
-        // Validar edad minima
+      case 202: {
         const edad = parseInt(valor)
         if (isNaN(edad) || edad < EDAD_MINIMA_EXPERTO) {
           enviarMensajeBot(
             "Lo sentimos, esta plataforma esta disenada para personas de 50 anos en adelante. Si crees que hubo un error, intenta de nuevo.",
           )
-          return // No avanza de paso, permite reintentar
+          return
         }
         guardarDato("age", valor)
-        enviarMensajeBot("Que tipo de servicio ofreces?", [
-          { label: "Clases o enseñanza", value: "clases" },
+        enviarMensajeBot("¿Que tipo de servicio ofreces?", [
+          { label: "Clases o ensenanza", value: "clases" },
           { label: "Reparaciones", value: "reparaciones" },
-          { label: "Asesoría profesional", value: "asesoria" },
+          { label: "Asesoria profesional", value: "asesoria" },
           { label: "Oficios manuales", value: "oficios" },
           { label: "Otro", value: "otro" },
         ])
-        setChatStep(2)
+        setChatStep(203)
         break
       }
 
-      case 2:
-        guardarDato("service", valor)
-        enviarMensajeBot("Cuéntame sobre tu experiencia en este campo.")
-        setChatStep(3)
+      case 203:
+        guardarDato("serviceCategory", valor)
+        enviarMensajeBot("Describe brevemente el servicio que ofreces:")
+        setChatStep(204)
         break
 
-      case 3:
+      case 204:
+        guardarDato("service", valor)
+        enviarMensajeBot("Cuentame sobre tu experiencia en este campo.")
+        setChatStep(205)
+        break
+
+      case 205:
         guardarDato("experience", valor)
-        enviarMensajeBot("¿Cuál es tu modalidad preferida?", [
+        enviarMensajeBot("¿Cual es tu modalidad preferida?", [
           { label: "Presencial", value: "presencial" },
           { label: "Remoto", value: "remoto" },
           { label: "Ambos", value: "ambos" },
         ])
-        setChatStep(4)
+        setChatStep(206)
         break
 
-      case 4:
+      case 206:
         guardarDato("modality", valor)
-        enviarMensajeBot("¿En qué zona te encuentras?", [
+        enviarMensajeBot("¿En que zona te encuentras?", [
           { label: "Centro", value: "Centro" },
           { label: "Norte", value: "Norte" },
           { label: "Sur", value: "Sur" },
           { label: "Este", value: "Este" },
         ])
-        setChatStep(5)
+        setChatStep(207)
         break
 
-      case 5:
+      case 207:
         guardarDato("zone", valor)
-        enviarMensajeBot("¿Cuáles son tus horarios disponibles? Por ejemplo: Lunes a Viernes, 10:00 - 14:00")
-        setChatStep(6)
+        enviarMensajeBot("¿Cuales son tus horarios disponibles? Por ejemplo: Lunes a Viernes, 10:00 - 14:00")
+        setChatStep(208)
         break
 
-      case 6:
+      case 208:
         guardarDato("schedule", valor)
-        enviarMensajeBot("Por último, ¿cuál es tu medio de contacto preferido? (WhatsApp, telefono, correo)")
-        setChatStep(7)
+        enviarMensajeBot("Por ultimo, ¿cual es tu medio de contacto preferido? (WhatsApp, telefono, correo)")
+        setChatStep(209)
         break
 
-      case 7:
+      case 209: {
         guardarDato("contact", valor)
-        enviarMensajeBot(
-          "¡Excelente! Tu perfil ha sido creado con éxito. Ahora los usuarios podran encontrarte cuando busquen servicios como los tuyos. Puedes volver al inicio para ver como se ve tu perfil.",
-          [{ label: "Volver al inicio", value: "home" }],
-          1200,
-        )
-        setChatStep(8)
-        break
+        // Guardar el experto en la DB
+        setEstaCargando(true)
+        try {
+          const res = await fetchWithAuth("/api/experts", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              name: searchData.name || authUser?.displayName || "",
+              age: parseInt(searchData.age || "50"),
+              service: searchData.service || "",
+              serviceCategory: searchData.serviceCategory || "otro",
+              experience: searchData.experience || "",
+              modality: searchData.modality || "ambos",
+              zone: searchData.zone || "Centro",
+              schedule: searchData.schedule || "",
+              contact: valor,
+            }),
+          })
+          setEstaCargando(false)
 
-      case 8:
+          if (res.ok) {
+            enviarMensajeBotSecuencia([
+              { texto: "¡Excelente! Tu perfil ha sido creado con exito y guardado en nuestra base de datos." },
+              {
+                texto: "Ahora los usuarios podran encontrarte cuando busquen servicios como los tuyos. ¡Bienvenido/a a Magia Plateada!",
+                opciones: [{ label: "Volver al inicio", value: "home" }],
+              },
+            ])
+          } else {
+            const data = await res.json()
+            addMessage({ sender: "bot", text: data.error || "Hubo un error al crear tu perfil." })
+            addMessage({
+              sender: "bot",
+              text: "Puedes intentar de nuevo o volver al inicio.",
+              options: [{ label: "Volver al inicio", value: "home" }],
+            })
+          }
+        } catch {
+          setEstaCargando(false)
+          addMessage({ sender: "bot", text: "Error de conexion. Intenta de nuevo mas tarde." })
+        }
+        setChatStep(210)
+        break
+      }
+
+      case 210:
         resetChat()
         break
 
@@ -245,45 +501,250 @@ export function ChatScreen() {
     }
   }
 
+  // ───────────────────────────────────────
+  //  FLUJO SESION: solicitud (pasos 300-310)
+  // ───────────────────────────────────────
+
+  function procesarPasoSesion(valor: string, paso: number) {
+    switch (paso) {
+      case 300:
+        guardarDato("sessionDate", valor)
+        enviarMensajeBot("¿A que hora te gustaria la sesion?", [
+          { label: "Manana (9-12)", value: "09:00" },
+          { label: "Tarde (12-17)", value: "14:00" },
+          { label: "Noche (17-20)", value: "18:00" },
+        ])
+        setChatStep(301)
+        break
+
+      case 301:
+        guardarDato("sessionTime", valor)
+        enviarMensajeBot("¿Que duracion aproximada necesitas?", [
+          { label: "30 minutos", value: "30 minutos" },
+          { label: "1 hora", value: "1 hora" },
+          { label: "2 horas", value: "2 horas" },
+        ])
+        setChatStep(302)
+        break
+
+      case 302: {
+        guardarDato("sessionDuration", valor)
+        const expertName = selectedExpert?.name?.split(" ")[0] || "el experto"
+        enviarMensajeBot(
+          `Listo, voy a enviar tu solicitud de sesion a ${expertName} para el ${searchData.sessionDate || "dia solicitado"} a las ${searchData.sessionTime || valor}. Esto costara 1 credito. ¿Confirmas?`,
+          [
+            { label: "Si, confirmar", value: "confirm_session" },
+            { label: "Cancelar", value: "cancel_session" },
+          ],
+        )
+        setChatStep(303)
+        break
+      }
+
+      case 303: {
+        if (valor === "confirm_session") {
+          crearSesion()
+        } else {
+          enviarMensajeBot("Solicitud cancelada. Puedes volver a los resultados o al inicio.", [
+            { label: "Ver resultados", value: "go_results" },
+            { label: "Volver al inicio", value: "home" },
+          ])
+          setChatStep(399)
+        }
+        break
+      }
+
+      case 399: {
+        if (valor === "go_results") {
+          setScreen("results")
+        } else {
+          resetChat()
+        }
+        break
+      }
+
+      default:
+        break
+    }
+  }
+
+  async function crearSesion() {
+    if (!selectedExpert) return
+    setEstaCargando(true)
+    try {
+      const res = await fetchWithAuth("/api/sessions", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          expertId: selectedExpert.id,
+          requestedDate: searchData.sessionDate || "A convenir",
+          requestedTime: searchData.sessionTime || "",
+          requestedDuration: searchData.sessionDuration || "1 hora",
+        }),
+      })
+      const data = await res.json()
+      setEstaCargando(false)
+
+      if (!res.ok) {
+        if (res.status === 402) {
+          addMessage({
+            sender: "bot",
+            text: `No tienes suficientes creditos. Tu saldo actual es ${data.credits || 0}. ¿Deseas adquirir mas creditos?`,
+            options: [
+              { label: "Comprar creditos", value: "buy_credits" },
+              { label: "Volver al inicio", value: "home" },
+            ],
+          })
+          setChatStep(400)
+        } else {
+          addMessage({ sender: "bot", text: data.error || "Error al crear la sesion." })
+        }
+        return
+      }
+
+      setActiveSession(data.session)
+      setAuthUser(authUser ? { ...authUser, credits: data.credits } : null)
+      const expertName = selectedExpert.name.split(" ")[0]
+
+      enviarMensajeBotSecuencia([
+        { texto: `¡Tu solicitud de sesion con ${expertName} ha sido enviada exitosamente!` },
+        { texto: `Se descontó 1 credito. Tu saldo actual es de ${data.credits} creditos.` },
+        {
+          texto: `En la version completa, ${expertName} recibiria tu solicitud y podria aceptar, rechazar o proponer otra fecha. Para esta demo, la sesion queda como "pendiente".`,
+          opciones: [
+            { label: "Volver al inicio", value: "home" },
+            { label: "Buscar otro experto", value: "go_results" },
+          ],
+        },
+      ])
+      setChatStep(399)
+    } catch {
+      setEstaCargando(false)
+      addMessage({ sender: "bot", text: "Error de conexion. Intenta de nuevo." })
+    }
+  }
+
+  // ───────────────────────────────────────
+  //  FLUJO CREDITOS (paso 400)
+  // ───────────────────────────────────────
+
+  async function procesarPasoCreditos(valor: string) {
+    if (valor === "buy_credits") {
+      enviarMensajeBot("¿Cuantos creditos deseas adquirir? (simulado para la demo)", [
+        { label: "3 creditos", value: "buy_3" },
+        { label: "5 creditos", value: "buy_5" },
+        { label: "10 creditos", value: "buy_10" },
+      ])
+      setChatStep(401)
+    } else if (valor.startsWith("buy_")) {
+      const amount = parseInt(valor.replace("buy_", ""))
+      setEstaCargando(true)
+      try {
+        const res = await fetchWithAuth("/api/credits", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ amount }),
+        })
+        const data = await res.json()
+        setEstaCargando(false)
+
+        if (res.ok) {
+          setAuthUser(authUser ? { ...authUser, credits: data.credits } : null)
+          enviarMensajeBot(
+            `¡Listo! Se han agregado ${amount} creditos a tu cuenta. Tu saldo actual es de ${data.credits} creditos.`,
+            [
+              { label: "Volver al inicio", value: "home" },
+              { label: "Ver expertos", value: "go_results" },
+            ],
+          )
+          setChatStep(399)
+        } else {
+          addMessage({ sender: "bot", text: data.error || "Error al comprar creditos." })
+        }
+      } catch {
+        setEstaCargando(false)
+        addMessage({ sender: "bot", text: "Error de conexion." })
+      }
+    }
+  }
+
+  // ───────────────────────────────────────
+  //  Paso 99: reintentos de auth
+  // ───────────────────────────────────────
+
+  function procesarPasoReintento(valor: string) {
+    if (valor === "retry_login") {
+      setInputType("email")
+      enviarMensajeBot("Ingresa tu correo electronico:")
+      setChatStep(1)
+      guardarDato("authMode", "login")
+    } else if (valor === "retry_register" || valor === "switch_register") {
+      setInputType("email")
+      enviarMensajeBot("Vamos a crear tu cuenta. Ingresa tu correo electronico:")
+      setChatStep(1)
+      guardarDato("authMode", "register")
+    } else if (valor === "switch_login") {
+      setInputType("email")
+      enviarMensajeBot("Ingresa tu correo electronico:")
+      setChatStep(1)
+      guardarDato("authMode", "login")
+    } else if (valor === "home") {
+      resetChat()
+    }
+  }
+
   // ─── Manejo de envio de mensajes ───
 
-  /**
-   * Envia un mensaje del usuario (desde el input o al hacer clic en una opcion).
-   * Despues de agregar el mensaje, delega al flujo correspondiente segun el rol.
-   */
   function enviarMensajeUsuario(valorDirecto?: string) {
     const texto = valorDirecto || inputValue.trim()
     if (!texto) return
 
-    addMessage({ sender: "user", text: texto })
+    // Para passwords, mostrar asteriscos en el chat
+    const textoMostrado = inputType === "password" ? "*".repeat(texto.length) : texto
+    addMessage({ sender: "user", text: textoMostrado })
     setInputValue("")
 
-    // Dirigir al flujo correcto segun el rol del usuario
-    if (role === "client") {
-      procesarPasoCliente(texto, chatStep)
-    } else {
+    // Router de flujos basado en chatStep
+    if (chatStep >= 400) {
+      procesarPasoCreditos(texto)
+    } else if (chatStep >= 300 && chatStep < 400) {
+      procesarPasoSesion(texto, chatStep)
+    } else if (chatStep >= 200 && chatStep < 300) {
       procesarPasoExperto(texto, chatStep)
+    } else if (chatStep >= 100 && chatStep < 200) {
+      procesarPasoCliente(texto, chatStep)
+    } else if (chatStep === 99) {
+      procesarPasoReintento(texto)
+    } else {
+      procesarPasoAuth(texto, chatStep)
     }
   }
 
-  /**
-   * Maneja el clic en un boton de respuesta rapida.
-   * Muestra el texto seleccionado como mensaje del usuario y avanza el flujo.
-   */
   function manejarClicOpcion(opcion: ChatOption) {
     addMessage({ sender: "user", text: opcion.label })
 
-    // Caso especial: "Volver al inicio" reinicia toda la app
     if (opcion.value === "home") {
       resetChat()
       return
     }
+    if (opcion.value === "go_results") {
+      setScreen("results")
+      return
+    }
 
-    // Dirigir al flujo correcto segun el rol
-    if (role === "client") {
-      procesarPasoCliente(opcion.value, chatStep)
-    } else {
+    // Router de flujos
+    if (chatStep >= 400) {
+      procesarPasoCreditos(opcion.value)
+    } else if (chatStep >= 300 && chatStep < 400) {
+      procesarPasoSesion(opcion.value, chatStep)
+    } else if (chatStep >= 200 && chatStep < 300) {
       procesarPasoExperto(opcion.value, chatStep)
+    } else if (chatStep >= 100 && chatStep < 200) {
+      procesarPasoCliente(opcion.value, chatStep)
+    } else if (chatStep === 99) {
+      procesarPasoReintento(opcion.value)
+    } else {
+      procesarPasoAuth(opcion.value, chatStep)
     }
   }
 
@@ -291,10 +752,14 @@ export function ChatScreen() {
 
   return (
     <div className="flex h-screen flex-col bg-background">
-      {/* Encabezado del chat */}
-      <EncabezadoChat rol={role} onVolver={resetChat} />
+      <EncabezadoChat
+        rol={role}
+        onVolver={resetChat}
+        isLoggedIn={isLoggedIn}
+        credits={authUser?.credits}
+        onLogout={logout}
+      />
 
-      {/* Area de mensajes (scrollable) */}
       <div ref={scrollRef} className="flex-1 overflow-y-auto px-4 py-6">
         <div className="mx-auto flex max-w-lg flex-col gap-4">
           {messages.map((msg, index) => (
@@ -305,13 +770,10 @@ export function ChatScreen() {
               onClickOpcion={manejarClicOpcion}
             />
           ))}
-
-          {/* Indicador de "escribiendo..." */}
           {estaCargando && <IndicadorEscribiendo />}
         </div>
       </div>
 
-      {/* Barra de entrada de texto */}
       <div className="border-t border-border bg-card px-4 py-4">
         <form
           onSubmit={(e) => {
@@ -322,10 +784,16 @@ export function ChatScreen() {
         >
           <input
             ref={inputRef}
-            type="text"
+            type={inputType}
             value={inputValue}
             onChange={(e) => setInputValue(e.target.value)}
-            placeholder="Escribe tu mensaje..."
+            placeholder={
+              inputType === "email"
+                ? "tu@correo.com"
+                : inputType === "password"
+                  ? "Tu contrasena..."
+                  : "Escribe tu mensaje..."
+            }
             className="flex-1 rounded-full border-2 border-input bg-background px-5 py-3.5 text-base text-foreground placeholder:text-muted-foreground focus:border-primary focus:outline-none transition-colors"
           />
           <Button
@@ -344,21 +812,23 @@ export function ChatScreen() {
 }
 
 // ───────────────────────────────────────────
-//  Subcomponentes del chat
+//  Subcomponentes
 // ───────────────────────────────────────────
 
-/**
- * EncabezadoChat: barra superior del chat con boton "volver",
- * logo de la app y subtitulo segun el rol del usuario.
- */
 function EncabezadoChat({
   rol,
   onVolver,
+  isLoggedIn,
+  credits,
+  onLogout,
 }: {
   rol: "client" | "expert" | null
   onVolver: () => void
+  isLoggedIn: boolean
+  credits?: number
+  onLogout: () => void
 }) {
-  const subtitulo = rol === "client" ? "Buscando ayuda" : "Brindando ayuda"
+  const subtitulo = rol === "client" ? "Buscando ayuda" : "Ofreciendo experiencia"
 
   return (
     <header className="flex items-center gap-3 border-b border-border bg-card px-4 py-4 shadow-sm">
@@ -369,7 +839,7 @@ function EncabezadoChat({
       >
         <ArrowLeft className="h-5 w-5 text-foreground" />
       </button>
-      <div className="flex items-center gap-3">
+      <div className="flex flex-1 items-center gap-3">
         <div className="flex h-10 w-10 items-center justify-center rounded-full bg-primary">
           <Star className="h-5 w-5 text-primary-foreground" />
         </div>
@@ -378,15 +848,27 @@ function EncabezadoChat({
           <p className="text-xs text-muted-foreground">{subtitulo}</p>
         </div>
       </div>
+      {isLoggedIn && (
+        <div className="flex items-center gap-2">
+          {credits !== undefined && (
+            <span className="flex items-center gap-1 rounded-full bg-accent/15 px-3 py-1.5 text-xs font-semibold text-accent">
+              <CreditCard className="h-3.5 w-3.5" />
+              {credits}
+            </span>
+          )}
+          <button
+            onClick={onLogout}
+            className="flex h-8 w-8 items-center justify-center rounded-full hover:bg-secondary transition-colors"
+            aria-label="Cerrar sesion"
+          >
+            <LogOut className="h-4 w-4 text-muted-foreground" />
+          </button>
+        </div>
+      )}
     </header>
   )
 }
 
-/**
- * BurbujaMensaje: renderiza un mensaje individual (del bot o del usuario).
- * Los mensajes del bot aparecen a la izquierda, los del usuario a la derecha.
- * Si el mensaje del bot tiene opciones, muestra botones de respuesta rapida.
- */
 function BurbujaMensaje({
   mensaje,
   indice,
@@ -403,7 +885,6 @@ function BurbujaMensaje({
       className={`flex flex-col ${esUsuario ? "items-end" : "items-start"} animate-fade-in-up`}
       style={{ animationDelay: `${indice * 50}ms` }}
     >
-      {/* Burbuja de texto */}
       <div
         className={`max-w-[85%] rounded-2xl px-4 py-3 text-base leading-relaxed ${
           esUsuario
@@ -414,7 +895,6 @@ function BurbujaMensaje({
         {mensaje.text}
       </div>
 
-      {/* Botones de respuesta rapida (solo para mensajes del bot) */}
       {mensaje.options && !esUsuario && (
         <div className="mt-3 flex flex-wrap gap-2">
           {mensaje.options.map((opcion) => (
@@ -432,10 +912,6 @@ function BurbujaMensaje({
   )
 }
 
-/**
- * IndicadorEscribiendo: tres puntos animados que aparecen
- * mientras el bot "escribe" su respuesta.
- */
 function IndicadorEscribiendo() {
   return (
     <div className="flex items-start animate-fade-in-up">

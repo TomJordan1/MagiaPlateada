@@ -47,7 +47,10 @@
     "date-fns": "^3.6.0",
     "embla-carousel-react": "8.5.1",
     "input-otp": "1.4.1",
+    "jose": "^5.2.0",
     "lucide-react": "^0.544.0",
+    "@neondatabase/serverless": "^0.10.0",
+    "bcryptjs": "^2.4.3",
     "next": "^15.5.12",
     "next-themes": "^0.4.6",
     "react": "18.3.1",
@@ -63,6 +66,7 @@
     "zod": "^3.24.1"
   },
   "devDependencies": {
+    "@types/bcryptjs": "^2.4.6",
     "@types/node": "^22",
     "@types/react": "^18.3.3",
     "@types/react-dom": "^18.3.0",

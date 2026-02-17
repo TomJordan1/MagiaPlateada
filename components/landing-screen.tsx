@@ -1,113 +1,164 @@
 /**
  * landing-screen.tsx
  * -------------------
- * Pantalla de inicio (landing) de Magia Plateada.
+ * Pantalla de inicio de Magia Plateada.
  *
- * Muestra:
- * 1. Logo y nombre de la app
- * 2. Titulo hero y descripcion
- * 3. Dos botones principales: "Buscar ayuda" y "Ofrecer mis servicios"
- * 4. Seccion "Como funciona" con 3 pasos explicativos
- * 5. Footer con mensaje de marca
- *
- * Al presionar un boton, se inicia el flujo correspondiente en el chat.
+ * Textos alineados con el documento funcional:
+ * - "Quiero encontrar ayuda" / "Quiero ofrecer mi experiencia"
+ * - Si el usuario ya esta logueado, muestra bienvenida personalizada
  */
 "use client"
 
 import React from "react"
 import { useApp } from "@/lib/app-context"
 import { Button } from "@/components/ui/button"
-import { Search, Briefcase, Star, Users, MessageCircle, Shield } from "lucide-react"
-
-// ───────────────────────────────────────────
-//  Componente principal: LandingScreen
-// ───────────────────────────────────────────
+import { Search, Briefcase, Star, Users, MessageCircle, Shield, CreditCard, LogOut } from "lucide-react"
 
 export function LandingScreen() {
-  const { setScreen, setRole, addMessage } = useApp()
+  const { setScreen, setRole, addMessage, isLoggedIn, authUser, logout } = useApp()
 
   /**
-   * Inicia el flujo de CLIENTE (buscar ayuda).
-   * Cambia el rol a "client", navega al chat y envia los primeros
-   * mensajes del bot con un pequeno retraso para simular conversacion natural.
+   * Inicia el flujo de CLIENTE.
+   * Si ya esta logueado, salta directo al flujo de busqueda.
+   * Si no, inicia el flujo de autenticacion.
    */
   function iniciarFlujoBusqueda() {
     setRole("client")
     setScreen("chat")
 
-    // Primer mensaje de bienvenida (aparece tras 500ms)
-    setTimeout(() => {
-      addMessage({
-        sender: "bot",
-        text: "Hola, bienvenido a Magia Plateada. Estoy aquí para ayudarte a encontrar al experto ideal para lo que necesitas.",
-      })
-
-      // Segundo mensaje con opciones de servicio (aparece tras 1200ms mas)
+    if (isLoggedIn && authUser) {
+      setChatStep(100) // Saltar auth, ir directo a busqueda
       setTimeout(() => {
         addMessage({
           sender: "bot",
-          text: "Cuéntame, ¿qué tipo de servicio estas buscando?",
-          options: [
-            { label: "Clases o enseñanza", value: "clases" },
-            { label: "Reparaciones", value: "reparaciones" },
-            { label: "Asesoría profesional", value: "asesoría" },
-            { label: "Otro servicio", value: "otro" },
-          ],
+          text: `¡Hola de nuevo, ${authUser.displayName}! Tienes ${authUser.credits} creditos disponibles. Vamos a encontrarte un experto.`,
         })
-      }, 1200)
-    }, 500)
+        setTimeout(() => {
+          addMessage({
+            sender: "bot",
+            text: "Cuentame, ¿que tipo de servicio estas buscando?",
+            options: [
+              { label: "Clases o ensenanza", value: "clases" },
+              { label: "Reparaciones", value: "reparaciones" },
+              { label: "Asesoria profesional", value: "asesoria" },
+              { label: "Oficios manuales", value: "oficios" },
+              { label: "Otro servicio", value: "otro" },
+            ],
+          })
+        }, 1200)
+      }, 500)
+    } else {
+      setTimeout(() => {
+        addMessage({
+          sender: "bot",
+          text: "¡Hola! Bienvenido a Magia Plateada. Estoy aqui para ayudarte a encontrar al experto ideal.",
+        })
+        setTimeout(() => {
+          addMessage({
+            sender: "bot",
+            text: "Para comenzar, necesito que inicies sesion o crees una cuenta. ¿Que prefieres?",
+            options: [
+              { label: "Iniciar sesion", value: "login" },
+              { label: "Crear cuenta nueva", value: "register" },
+            ],
+          })
+        }, 1200)
+      }, 500)
+    }
   }
 
   /**
-   * Inicia el flujo de EXPERTO (ofrecer servicios).
-   * Cambia el rol a "expert", navega al chat y envia los primeros
-   * mensajes del bot pidiendo el nombre del experto.
+   * Inicia el flujo de EXPERTO.
+   * Si ya esta logueado como experto, muestra opciones de gestion.
+   * Si no, inicia el flujo de autenticacion.
    */
-  function iniciarFlujoRegistro() {
+  function iniciarFlujoExperto() {
     setRole("expert")
     setScreen("chat")
 
-    // Primer mensaje de bienvenida (aparece tras 500ms)
-    setTimeout(() => {
-      addMessage({
-        sender: "bot",
-        text: "¡Bienvenido! Nos da mucho gusto que quieras compartir tu experiencia. Vamos a crear tu perfil paso a paso.",
-      })
-
-      // Segundo mensaje pidiendo el nombre (aparece tras 1200ms mas)
+    if (isLoggedIn && authUser) {
       setTimeout(() => {
         addMessage({
           sender: "bot",
-          text: "Para comenzar, ¿cuál es tu nombre completo?",
+          text: `¡Hola, ${authUser.displayName}! ¿Que deseas hacer?`,
+          options: [
+            { label: "Ver mi perfil", value: "expert_view_profile" },
+            { label: "Cambiar disponibilidad", value: "expert_change_status" },
+            { label: "Volver al inicio", value: "home" },
+          ],
         })
-      }, 1200)
-    }, 500)
+      }, 500)
+    } else {
+      setTimeout(() => {
+        addMessage({
+          sender: "bot",
+          text: "¡Bienvenido! Nos da mucho gusto que quieras compartir tu experiencia. Para comenzar, necesitamos crear tu cuenta.",
+        })
+        setTimeout(() => {
+          addMessage({
+            sender: "bot",
+            text: "¿Ya tienes una cuenta o deseas registrarte?",
+            options: [
+              { label: "Iniciar sesion", value: "login" },
+              { label: "Crear cuenta nueva", value: "register" },
+            ],
+          })
+        }, 1200)
+      }, 500)
+    }
   }
 
   return (
     <div className="flex min-h-screen flex-col bg-background">
-      {/* Encabezado con logo */}
-      <header className="flex items-center justify-center px-6 pt-8 pb-4">
+      {/* Encabezado con logo y sesion */}
+      <header className="flex items-center justify-between px-6 pt-8 pb-4">
         <div className="flex items-center gap-3">
           <div className="flex h-11 w-11 items-center justify-center rounded-full bg-primary">
             <Star className="h-6 w-6 text-primary-foreground" />
           </div>
           <h1 className="font-serif text-2xl text-foreground">Magia Plateada</h1>
         </div>
+        {isLoggedIn && authUser && (
+          <div className="flex items-center gap-2">
+            <span className="flex items-center gap-1 rounded-full bg-accent/15 px-3 py-1.5 text-xs font-semibold text-accent">
+              <CreditCard className="h-3.5 w-3.5" />
+              {authUser.credits}
+            </span>
+            <button
+              onClick={logout}
+              className="flex h-8 w-8 items-center justify-center rounded-full hover:bg-secondary transition-colors"
+              aria-label="Cerrar sesion"
+            >
+              <LogOut className="h-4 w-4 text-muted-foreground" />
+            </button>
+          </div>
+        )}
       </header>
 
-      {/* Seccion hero: titulo principal y descripcion */}
       <main className="flex flex-1 flex-col items-center px-6 pt-6">
         <div className="mx-auto w-full max-w-md text-center">
-          <h2 className="font-serif text-3xl leading-tight text-foreground text-balance md:text-4xl">
-            Conectando como si fuera magia
-          </h2>
-          <p className="mt-4 text-base leading-relaxed text-muted-foreground">
-            Una plataforma donde adultos mayores comparten su experiencia y sabiduría con quienes la necesitan.
-          </p>
+          {isLoggedIn && authUser ? (
+            <>
+              <p className="text-base text-muted-foreground">
+                Hola, {authUser.displayName}
+              </p>
+              <h2 className="mt-2 font-serif text-3xl leading-tight text-foreground text-balance md:text-4xl">
+                ¿Que necesitas hoy?
+              </h2>
+            </>
+          ) : (
+            <>
+              <h2 className="font-serif text-3xl leading-tight text-foreground text-balance md:text-4xl">
+                Conectando como si fuera magia
+              </h2>
+              <p className="mt-4 text-base leading-relaxed text-muted-foreground">
+                Una plataforma donde adultos mayores comparten su experiencia y sabiduria con quienes la necesitan.
+              </p>
+            </>
+          )}
         </div>
 
-        {/* Botones de accion principal (CTAs) */}
+        {/* CTAs alineados con el documento funcional */}
         <div className="mt-10 flex w-full max-w-md flex-col gap-4">
           <Button
             size="lg"
@@ -115,47 +166,46 @@ export function LandingScreen() {
             onClick={iniciarFlujoBusqueda}
           >
             <Search className="mr-2 h-5 w-5" />
-            Buscar ayuda
+            Quiero encontrar ayuda
           </Button>
           <Button
             variant="outline"
             size="lg"
             className="h-16 rounded-2xl text-lg font-medium border-2 bg-transparent"
-            onClick={iniciarFlujoRegistro}
+            onClick={iniciarFlujoExperto}
           >
             <Briefcase className="mr-2 h-5 w-5" />
-            Ofrecer mis servicios
+            Quiero ofrecer mi experiencia
           </Button>
         </div>
 
-        {/* Seccion explicativa: "Como funciona" */}
+        {/* Seccion "Como funciona" */}
         <section className="mt-14 w-full max-w-md">
           <h3 className="text-center font-serif text-xl text-foreground mb-8">
-            Cómo funciona
+            Como funciona
           </h3>
           <div className="flex flex-col gap-6">
             <TarjetaPaso
               icon={<MessageCircle className="h-6 w-6" />}
               title="Conversamos contigo"
-              description="Un chat sencillo te guía para encontrar o publicar el servicio ideal."
+              description="Un chat sencillo te guia para encontrar o publicar el servicio ideal."
             />
             <TarjetaPaso
               icon={<Users className="h-6 w-6" />}
               title="Conectamos personas"
-              description="Encontramos al experto más adecuado según tus necesidades."
+              description="Encontramos al experto mas adecuado segun tus necesidades."
             />
             <TarjetaPaso
               icon={<Shield className="h-6 w-6" />}
-              title="Sin prisa, con confianza"
-              description="Los servicios se coordinan a tu ritmo. Te avisamos cuando sea momento de evaluar."
+              title="Con confianza y creditos"
+              description="Solicita sesiones con creditos. Ambos se califican al terminar."
             />
           </div>
         </section>
 
-        {/* Pie de pagina */}
         <footer className="mt-14 mb-8 text-center">
           <p className="text-sm text-muted-foreground">
-            Hecho con cariño para quienes más saben
+            Hecho con carino para quienes mas saben
           </p>
         </footer>
       </main>
@@ -163,15 +213,6 @@ export function LandingScreen() {
   )
 }
 
-// ───────────────────────────────────────────
-//  Subcomponente: tarjeta de paso explicativo
-// ───────────────────────────────────────────
-
-/**
- * TarjetaPaso: muestra un icono, titulo y descripcion
- * dentro de una tarjeta con borde suave. Se usa en la seccion
- * "Como funciona" de la landing.
- */
 function TarjetaPaso({
   icon,
   title,
