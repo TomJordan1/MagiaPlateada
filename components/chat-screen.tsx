@@ -366,8 +366,36 @@ export function ChatScreen() {
     switch (paso) {
       case 200: {
         // Menu de gestion de experto post-login
-        if (valor === "expert_view_profile" || valor === "expert_change_status") {
-          enviarMensajeBot("Esta funcionalidad estara disponible pronto. ¿Deseas hacer algo mas?", [
+        if (valor === "expert_view_profile") {
+          await mostrarPerfilExperto()
+        } else if (valor === "expert_edit_info") {
+          enviarMensajeBot("¿Que campo deseas editar?", [
+            { label: "Servicio ofrecido", value: "edit_service" },
+            { label: "Experiencia", value: "edit_experience" },
+            { label: "Horario", value: "edit_schedule" },
+            { label: "Contacto", value: "edit_contact" },
+            { label: "Zona", value: "edit_zone" },
+            { label: "Modalidad", value: "edit_modality" },
+          ])
+          setChatStep(220)
+        } else if (valor === "expert_change_status") {
+          enviarMensajeBot("¿Cual es tu nueva disponibilidad?", [
+            { label: "Disponible", value: "available" },
+            { label: "Con agenda llena", value: "busy" },
+            { label: "No disponible temporalmente", value: "unavailable" },
+          ])
+          setChatStep(230)
+        } else if (valor === "expert_membership") {
+          await mostrarInfoMembresia()
+        } else if (valor === "expert_view_sessions") {
+          await mostrarSesionesPendientes()
+        } else if (valor === "expert_menu") {
+          // Volver al menu de gestion
+          enviarMensajeBot("¿Que mas deseas hacer?", [
+            { label: "Ver mi perfil", value: "expert_view_profile" },
+            { label: "Editar mi informacion", value: "expert_edit_info" },
+            { label: "Cambiar disponibilidad", value: "expert_change_status" },
+            { label: "Membresia destacada", value: "expert_membership" },
             { label: "Volver al inicio", value: "home" },
           ])
           setChatStep(200)
@@ -496,8 +524,313 @@ export function ChatScreen() {
         resetChat()
         break
 
+      // ─── Editar informacion (pasos 220-221) ───
+      case 220: {
+        const fieldMap: Record<string, string> = {
+          edit_service: "service",
+          edit_experience: "experience",
+          edit_schedule: "schedule",
+          edit_contact: "contact",
+          edit_zone: "zone",
+          edit_modality: "modality",
+        }
+        const campo = fieldMap[valor]
+        if (campo) {
+          guardarDato("editField", campo)
+          if (campo === "zone") {
+            enviarMensajeBot("Selecciona tu nueva zona:", [
+              { label: "Centro", value: "Centro" },
+              { label: "Norte", value: "Norte" },
+              { label: "Sur", value: "Sur" },
+              { label: "Este", value: "Este" },
+            ])
+          } else if (campo === "modality") {
+            enviarMensajeBot("Selecciona tu nueva modalidad:", [
+              { label: "Presencial", value: "presencial" },
+              { label: "Remoto", value: "remoto" },
+              { label: "Ambos", value: "ambos" },
+            ])
+          } else {
+            const labels: Record<string, string> = {
+              service: "Escribe tu nuevo servicio ofrecido:",
+              experience: "Describe tu nueva experiencia:",
+              schedule: "Escribe tu nuevo horario (ej: Lunes a Viernes, 10:00 - 14:00):",
+              contact: "Escribe tu nuevo medio de contacto:",
+            }
+            enviarMensajeBot(labels[campo] || "Escribe el nuevo valor:")
+          }
+          setChatStep(221)
+        }
+        break
+      }
+
+      case 221: {
+        // Guardar el campo editado en la DB
+        const field = searchData.editField
+        if (!field) break
+
+        setEstaCargando(true)
+        try {
+          const res = await fetchWithAuth("/api/experts/profile", {
+            method: "PUT",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ field, value: valor }),
+          })
+          setEstaCargando(false)
+
+          if (res.ok) {
+            const labelCampo: Record<string, string> = {
+              service: "servicio",
+              experience: "experiencia",
+              schedule: "horario",
+              contact: "contacto",
+              zone: "zona",
+              modality: "modalidad",
+            }
+            enviarMensajeBot(`Tu ${labelCampo[field] || field} ha sido actualizado exitosamente.`, [
+              { label: "Editar otro campo", value: "expert_edit_info" },
+              { label: "Menu principal", value: "expert_menu" },
+              { label: "Volver al inicio", value: "home" },
+            ])
+          } else {
+            const data = await res.json()
+            enviarMensajeBot(data.error || "Error al actualizar.", [
+              { label: "Intentar de nuevo", value: "expert_edit_info" },
+              { label: "Menu principal", value: "expert_menu" },
+            ])
+          }
+        } catch {
+          setEstaCargando(false)
+          enviarMensajeBot("Error de conexion.", [
+            { label: "Menu principal", value: "expert_menu" },
+          ])
+        }
+        setChatStep(200)
+        break
+      }
+
+      // ─── Cambiar disponibilidad (paso 230) ───
+      case 230: {
+        if (["available", "busy", "unavailable"].includes(valor)) {
+          setEstaCargando(true)
+          try {
+            const res = await fetchWithAuth("/api/experts/status", {
+              method: "PUT",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ status: valor }),
+            })
+            setEstaCargando(false)
+
+            if (res.ok) {
+              const labels: Record<string, string> = {
+                available: "Disponible",
+                busy: "Con agenda llena",
+                unavailable: "No disponible temporalmente",
+              }
+              enviarMensajeBot(`Tu estado ha sido actualizado a "${labels[valor]}".`, [
+                { label: "Menu principal", value: "expert_menu" },
+                { label: "Volver al inicio", value: "home" },
+              ])
+            } else {
+              const data = await res.json()
+              enviarMensajeBot(data.error || "Error al cambiar estado.", [
+                { label: "Intentar de nuevo", value: "expert_change_status" },
+                { label: "Menu principal", value: "expert_menu" },
+              ])
+            }
+          } catch {
+            setEstaCargando(false)
+            enviarMensajeBot("Error de conexion.", [
+              { label: "Menu principal", value: "expert_menu" },
+            ])
+          }
+          setChatStep(200)
+        }
+        break
+      }
+
+      // ─── Membresia destacada (paso 240) ───
+      case 240: {
+        if (valor === "activate_premium" || valor === "deactivate_premium") {
+          const newType = valor === "activate_premium" ? "premium" : "free"
+          setEstaCargando(true)
+          try {
+            const res = await fetchWithAuth("/api/experts/membership", {
+              method: "PUT",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ membershipType: newType }),
+            })
+            setEstaCargando(false)
+
+            if (res.ok) {
+              if (newType === "premium") {
+                enviarMensajeBotSecuencia([
+                  { texto: "¡Membresia premium activada! (simulado para la demo)" },
+                  {
+                    texto: "Tu perfil ahora aparecera destacado y con prioridad en los resultados de busqueda.",
+                    opciones: [
+                      { label: "Menu principal", value: "expert_menu" },
+                      { label: "Volver al inicio", value: "home" },
+                    ],
+                  },
+                ])
+              } else {
+                enviarMensajeBot("Tu membresia ha vuelto al plan gratuito.", [
+                  { label: "Menu principal", value: "expert_menu" },
+                  { label: "Volver al inicio", value: "home" },
+                ])
+              }
+            } else {
+              const data = await res.json()
+              enviarMensajeBot(data.error || "Error al cambiar membresia.", [
+                { label: "Menu principal", value: "expert_menu" },
+              ])
+            }
+          } catch {
+            setEstaCargando(false)
+            enviarMensajeBot("Error de conexion.", [
+              { label: "Menu principal", value: "expert_menu" },
+            ])
+          }
+          setChatStep(200)
+        }
+        break
+      }
+
       default:
         break
+    }
+  }
+
+  // ─── Funciones auxiliares de experto ───
+
+  async function mostrarPerfilExperto() {
+    setEstaCargando(true)
+    try {
+      const res = await fetchWithAuth("/api/experts/me")
+      const data = await res.json()
+      setEstaCargando(false)
+
+      if (!data.expert) {
+        enviarMensajeBot("Aun no tienes un perfil de experto creado. ¿Deseas crearlo?", [
+          { label: "Si, crear perfil", value: "create_profile" },
+          { label: "Volver al inicio", value: "home" },
+        ])
+        return
+      }
+
+      const e = data.expert
+      const statusLabels: Record<string, string> = {
+        available: "Disponible",
+        busy: "Con agenda llena",
+        unavailable: "No disponible",
+      }
+      const membershipLabel = e.membershipType === "premium" ? "Premium (Destacado)" : "Gratuita"
+
+      enviarMensajeBotSecuencia([
+        {
+          texto: `Tu perfil:\n\nNombre: ${e.name}\nServicio: ${e.service}\nExperiencia: ${e.experience}\nModalidad: ${e.modality === "ambos" ? "Presencial y Remoto" : e.modality === "presencial" ? "Presencial" : "Remoto"}\nZona: ${e.zone}\nHorario: ${e.schedule}\nContacto: ${e.contact}\nEstado: ${statusLabels[e.status] || e.status}\nMembresia: ${membershipLabel}\nCalificacion: ${e.rating}/5 (${e.totalRatings} resenas)`,
+        },
+        {
+          texto: "¿Que deseas hacer?",
+          opciones: [
+            { label: "Editar mi informacion", value: "expert_edit_info" },
+            { label: "Cambiar disponibilidad", value: "expert_change_status" },
+            { label: "Membresia destacada", value: "expert_membership" },
+            { label: "Volver al inicio", value: "home" },
+          ],
+        },
+      ])
+      setChatStep(200)
+    } catch {
+      setEstaCargando(false)
+      enviarMensajeBot("Error al obtener tu perfil.", [
+        { label: "Intentar de nuevo", value: "expert_view_profile" },
+        { label: "Volver al inicio", value: "home" },
+      ])
+    }
+  }
+
+  async function mostrarInfoMembresia() {
+    setEstaCargando(true)
+    try {
+      const res = await fetchWithAuth("/api/experts/me")
+      const data = await res.json()
+      setEstaCargando(false)
+
+      const currentType = data.expert?.membershipType || "free"
+
+      if (currentType === "premium") {
+        enviarMensajeBotSecuencia([
+          { texto: "Actualmente tienes la membresia Premium activa. Tu perfil aparece destacado y con prioridad en los resultados." },
+          {
+            texto: "¿Deseas desactivar la membresia premium?",
+            opciones: [
+              { label: "Desactivar premium", value: "deactivate_premium" },
+              { label: "Menu principal", value: "expert_menu" },
+            ],
+          },
+        ])
+      } else {
+        enviarMensajeBotSecuencia([
+          { texto: "La membresia Premium te da visibilidad destacada: tu perfil aparece primero en los resultados con un badge especial." },
+          {
+            texto: "¿Deseas activar la membresia Premium? (simulado para la demo, sin costo real)",
+            opciones: [
+              { label: "Activar Premium", value: "activate_premium" },
+              { label: "Menu principal", value: "expert_menu" },
+            ],
+          },
+        ])
+      }
+      setChatStep(240)
+    } catch {
+      setEstaCargando(false)
+      enviarMensajeBot("Error al obtener informacion de membresia.", [
+        { label: "Menu principal", value: "expert_menu" },
+      ])
+    }
+  }
+
+  async function mostrarSesionesPendientes() {
+    setEstaCargando(true)
+    try {
+      const res = await fetchWithAuth("/api/sessions")
+      const data = await res.json()
+      setEstaCargando(false)
+
+      const expertSessions = data.expertSessions || []
+      const pending = expertSessions.filter((s: { status: string }) => s.status === "pending")
+
+      if (pending.length === 0) {
+        enviarMensajeBot("No tienes sesiones pendientes en este momento.", [
+          { label: "Menu principal", value: "expert_menu" },
+          { label: "Volver al inicio", value: "home" },
+        ])
+      } else {
+        const listText = pending
+          .map((s: { client_name?: string; requested_date?: string; requested_time?: string }, i: number) =>
+            `${i + 1}. ${s.client_name || "Cliente"} - ${s.requested_date || "Sin fecha"} ${s.requested_time || ""}`
+          )
+          .join("\n")
+
+        enviarMensajeBotSecuencia([
+          { texto: `Tienes ${pending.length} sesion(es) pendiente(s):\n\n${listText}` },
+          {
+            texto: "En la version completa, podrias aceptar o rechazar cada solicitud. Para esta demo, quedan como pendientes.",
+            opciones: [
+              { label: "Menu principal", value: "expert_menu" },
+              { label: "Volver al inicio", value: "home" },
+            ],
+          },
+        ])
+      }
+      setChatStep(200)
+    } catch {
+      setEstaCargando(false)
+      enviarMensajeBot("Error al cargar sesiones.", [
+        { label: "Menu principal", value: "expert_menu" },
+      ])
     }
   }
 

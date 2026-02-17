@@ -15,7 +15,7 @@ import { Button } from "@/components/ui/button"
 import { Search, Briefcase, Star, Users, MessageCircle, Shield, CreditCard, LogOut } from "lucide-react"
 
 export function LandingScreen() {
-  const { setScreen, setRole, addMessage, isLoggedIn, authUser, logout } = useApp()
+  const { setScreen, setRole, addMessage, isLoggedIn, authUser, logout, setChatStep, fetchWithAuth } = useApp()
 
   /**
    * Inicia el flujo de CLIENTE.
@@ -72,22 +72,71 @@ export function LandingScreen() {
    * Si ya esta logueado como experto, muestra opciones de gestion.
    * Si no, inicia el flujo de autenticacion.
    */
-  function iniciarFlujoExperto() {
+  async function iniciarFlujoExperto() {
     setRole("expert")
     setScreen("chat")
 
     if (isLoggedIn && authUser) {
-      setTimeout(() => {
-        addMessage({
-          sender: "bot",
-          text: `¡Hola, ${authUser.displayName}! ¿Que deseas hacer?`,
-          options: [
-            { label: "Ver mi perfil", value: "expert_view_profile" },
-            { label: "Cambiar disponibilidad", value: "expert_change_status" },
-            { label: "Volver al inicio", value: "home" },
-          ],
-        })
-      }, 500)
+      setChatStep(200) // Saltar auth, ir directo a gestion de experto
+
+      // Obtener perfil y sesiones pendientes del experto
+      try {
+        const res = await fetchWithAuth("/api/experts/me")
+        const data = await res.json()
+        const pendingCount = data.pendingSessions || 0
+        const expertProfile = data.expert
+
+        if (!expertProfile) {
+          // Tiene cuenta pero no perfil de experto aun
+          setTimeout(() => {
+            addMessage({
+              sender: "bot",
+              text: `¡Hola, ${authUser.displayName}! Veo que aun no has completado tu perfil de experto. Vamos a crearlo.`,
+            })
+            setTimeout(() => {
+              addMessage({
+                sender: "bot",
+                text: "Para comenzar tu perfil profesional, ¿cual es tu nombre completo?",
+              })
+              setChatStep(201)
+            }, 1200)
+          }, 500)
+          return
+        }
+
+        const pendingText = pendingCount > 0
+          ? ` Tienes ${pendingCount} solicitud(es) de sesion pendiente(s).`
+          : ""
+
+        setTimeout(() => {
+          addMessage({
+            sender: "bot",
+            text: `¡Hola, ${authUser.displayName}!${pendingText} ¿Que deseas hacer?`,
+            options: [
+              { label: "Ver mi perfil", value: "expert_view_profile" },
+              { label: "Editar mi informacion", value: "expert_edit_info" },
+              { label: "Cambiar disponibilidad", value: "expert_change_status" },
+              { label: "Membresia destacada", value: "expert_membership" },
+              ...(pendingCount > 0
+                ? [{ label: `Ver sesiones (${pendingCount})`, value: "expert_view_sessions" }]
+                : []),
+              { label: "Volver al inicio", value: "home" },
+            ],
+          })
+        }, 500)
+      } catch {
+        setTimeout(() => {
+          addMessage({
+            sender: "bot",
+            text: `¡Hola, ${authUser.displayName}! ¿Que deseas hacer?`,
+            options: [
+              { label: "Ver mi perfil", value: "expert_view_profile" },
+              { label: "Cambiar disponibilidad", value: "expert_change_status" },
+              { label: "Volver al inicio", value: "home" },
+            ],
+          })
+        }, 500)
+      }
     } else {
       setTimeout(() => {
         addMessage({

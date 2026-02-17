@@ -16,7 +16,8 @@ export async function GET(req: Request) {
     const modality = url.searchParams.get("modality")
     const serviceCategory = url.searchParams.get("service_category")
 
-    // Construir query dinamicamente con filtros
+    // Orden: premium primero, luego disponibles, luego por rating
+    // CASE en ORDER BY: available=0, busy=1, unavailable=2 (pero filtramos unavailable)
     let experts
     if (zone && modality && modality !== "ambos") {
       experts = await sql`
@@ -24,34 +25,44 @@ export async function GET(req: Request) {
         WHERE status != 'unavailable'
           AND zone = ${zone}
           AND (modality = ${modality} OR modality = 'ambos')
-        ORDER BY is_featured DESC, rating DESC
+        ORDER BY is_featured DESC,
+          CASE status WHEN 'available' THEN 0 WHEN 'busy' THEN 1 ELSE 2 END,
+          rating DESC
       `
     } else if (zone) {
       experts = await sql`
         SELECT * FROM experts
         WHERE status != 'unavailable'
           AND zone = ${zone}
-        ORDER BY is_featured DESC, rating DESC
+        ORDER BY is_featured DESC,
+          CASE status WHEN 'available' THEN 0 WHEN 'busy' THEN 1 ELSE 2 END,
+          rating DESC
       `
     } else if (modality && modality !== "ambos") {
       experts = await sql`
         SELECT * FROM experts
         WHERE status != 'unavailable'
           AND (modality = ${modality} OR modality = 'ambos')
-        ORDER BY is_featured DESC, rating DESC
+        ORDER BY is_featured DESC,
+          CASE status WHEN 'available' THEN 0 WHEN 'busy' THEN 1 ELSE 2 END,
+          rating DESC
       `
     } else if (serviceCategory) {
       experts = await sql`
         SELECT * FROM experts
         WHERE status != 'unavailable'
           AND service_category = ${serviceCategory}
-        ORDER BY is_featured DESC, rating DESC
+        ORDER BY is_featured DESC,
+          CASE status WHEN 'available' THEN 0 WHEN 'busy' THEN 1 ELSE 2 END,
+          rating DESC
       `
     } else {
       experts = await sql`
         SELECT * FROM experts
         WHERE status != 'unavailable'
-        ORDER BY is_featured DESC, rating DESC
+        ORDER BY is_featured DESC,
+          CASE status WHEN 'available' THEN 0 WHEN 'busy' THEN 1 ELSE 2 END,
+          rating DESC
       `
     }
 
@@ -73,6 +84,7 @@ export async function GET(req: Request) {
       totalRatings: e.total_ratings,
       avatar: e.avatar,
       isFeatured: e.is_featured,
+      membershipType: e.membership_type || "free",
     }))
 
     return NextResponse.json({ experts: mapped })

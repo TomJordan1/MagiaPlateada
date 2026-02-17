@@ -91,8 +91,8 @@ export async function GET(req: Request) {
       return NextResponse.json({ error: "Token invalido." }, { status: 401 })
     }
 
-    // Obtener sesiones del usuario (como cliente o como experto)
-    const sessions = await sql`
+    // Obtener sesiones como cliente
+    const clientSessions = await sql`
       SELECT s.*, e.name as expert_name, e.service as expert_service
       FROM sessions s
       JOIN experts e ON s.expert_id = e.id
@@ -100,7 +100,20 @@ export async function GET(req: Request) {
       ORDER BY s.created_at DESC
     `
 
-    return NextResponse.json({ sessions })
+    // Obtener sesiones como experto (solicitudes recibidas)
+    const expertSessions = await sql`
+      SELECT s.*, u.display_name as client_name
+      FROM sessions s
+      JOIN users u ON s.client_id = u.id
+      JOIN experts e ON s.expert_id = e.id
+      WHERE e.user_id = ${payload.userId}
+      ORDER BY s.created_at DESC
+    `
+
+    return NextResponse.json({
+      sessions: clientSessions,
+      expertSessions: expertSessions,
+    })
   } catch (error) {
     console.error("Error listando sesiones:", error)
     return NextResponse.json({ error: "Error interno." }, { status: 500 })

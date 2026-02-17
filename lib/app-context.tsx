@@ -49,6 +49,7 @@ export interface Expert {
   totalRatings: number
   avatar: string
   isFeatured?: boolean
+  membershipType?: "free" | "premium"
 }
 
 export interface SessionRequest {
